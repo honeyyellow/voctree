@@ -37,7 +37,5 @@ set(SOURCES
 
 add_executable(${NAME} ${SOURCES})
 target_link_libraries(${NAME} PUBLIC PopSift::popsift)
-
-add_executable(${NAME} 	${SOURCES})
 target_link_libraries(${NAME} ${OpenCV_LIBS})
 
