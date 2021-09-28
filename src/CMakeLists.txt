@@ -24,6 +24,8 @@ set(SOURCES
         Matching.h
         MatPersistor.cpp
         MatPersistor.h
+	PopSiftDetector.cpp
+	PopSiftDetector.h
         Server.cpp
         Server.h
         ShootSegmenter.cpp
@@ -32,6 +34,9 @@ set(SOURCES
         VocTree.cpp
         VocTree.h
 ) # SOURCES
+
+add_executable(${NAME} ${SOURCES})
+target_link_libraries(${NAME} PUBLIC PopSift::popsift)
 
 add_executable(${NAME} 	${SOURCES})
 target_link_libraries(${NAME} ${OpenCV_LIBS})
