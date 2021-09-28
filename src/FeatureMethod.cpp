@@ -265,7 +265,7 @@ FeatureMethod::_init(int detectorType, int extractorType) {
             _pfd = ORB::create(2500);
             break;
         case (DETECT_SIFT):
-            _pfd = xfeatures2d::SIFT::create();
+            _pfd = SIFT::create();
             break;
         case (DETECT_SURF):
             _pfd = xfeatures2d::SURF::create();
@@ -312,14 +312,14 @@ FeatureMethod::_init(int detectorType, int extractorType) {
                 _pde = ORB::create();
                 break;
             case (EXTRACT_SIFT):
-                _pde = xfeatures2d::SIFT::create();
+                _pde = SIFT::create();
                 break;
             case (EXTRACT_SURF):
                 _pde = xfeatures2d::SURF::create();
                 break;
 
             case (EXTRACT_RootSIFT):
-                _pde = xfeatures2d::SIFT::create();
+                _pde = SIFT::create();
                 break;
         }
 
