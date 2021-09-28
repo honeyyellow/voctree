@@ -6,6 +6,13 @@
 //version. You should have received a copy of this license along
 //this program. If not, see <http://www.gnu.org/licenses/>.
 
+#include <popsift/common/device_prop.h>
+#include <popsift/features.h>
+#include <popsift/popsift.h>
+#include <popsift/sift_conf.h>
+#include <popsift/sift_config.h>
+#include <popsift/version.hpp>
+
 #include <iostream>
 #include <stdlib.h>
 #include <string.h>
@@ -353,6 +360,14 @@ void printHelp(string cmd, string option) {
  */
 
 int main(int argc, char **argv) {
+
+    popsift::Config config;
+    PopSift PopSift( config,
+                     popsift::Config::ExtractingMode,
+                      PopSift::ByteImages );
+
+    cout << "Hello!" << endl;
+    std::cout << "PopSift version: " << POPSIFT_VERSION_STRING << std::endl;
 
 
     string cmd = argv[0];
