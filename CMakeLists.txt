@@ -15,4 +15,7 @@ ENDIF()
 # set(OpenCV_DIR ~/opencv/installed/3.1.0/share/OpenCV)
 find_package(OpenCV REQUIRED)
 
+# Added to fork, linking to popsift package
+find_package(PopSift CONFIG REQUIRED)
+
 add_subdirectory(src)
