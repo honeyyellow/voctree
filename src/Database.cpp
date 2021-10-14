@@ -197,7 +197,16 @@ void
 Database::processPicture(FileHelper::Entry &ent, bool forVocabulary) {
 
     string fileName = ent.fullName();
-    Mat img = imread(fileName.c_str());
+
+    Mat img;
+
+    FeatureMethod fm = _fm;
+    if (fm.getDetectorKey() == "POPSIFT")
+        img = imread(fileName.c_str(), IMREAD_GRAYSCALE);
+    else
+        img = imread(fileName.c_str());
+
+
     if (!img.data) {
         cout << " warning! cannot process file." << endl;
         return;
