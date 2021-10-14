@@ -13,6 +13,31 @@
 using namespace cv;
 using namespace std;
 
+// To retrieve type of opencv Mat object
+// https://stackoverflow.com/questions/10167534/how-to-find-out-what-type-of-a-mat-object-is-with-mattype-in-opencv
+string type2str(int type) {
+  string r;
+
+  uchar depth = type & CV_MAT_DEPTH_MASK;
+  uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+  switch ( depth ) {
+    case CV_8U:  r = "8U"; break;
+    case CV_8S:  r = "8S"; break;
+    case CV_16U: r = "16U"; break;
+    case CV_16S: r = "16S"; break;
+    case CV_32S: r = "32S"; break;
+    case CV_32F: r = "32F"; break;
+    case CV_64F: r = "64F"; break;
+    default:     r = "User"; break;
+  }
+
+  r += "C";
+  r += (chans+'0');
+
+  return r;
+}
+
 
 ostream &
 operator<<(ostream &out, FeatureMethod fm) {
@@ -52,9 +77,55 @@ applyRootSIFT(Mat &descriptors, double eps = 1e-7) {
 void
 FeatureMethod::detectAndCompute(Mat &img, vector<KeyPoint> &keypoints, Mat &descriptors) {
 
+    cout << " ---- FeatureMethod::detectAndCompute() called." << endl;
+
+    //cout << "img (rows, cols) : (" << img.rows << ", " << img.cols << ")" << endl;
+
+    //TODO - Since PopSift does both at the same time, if to check if using PopSift
+    // If to chech if pfd is popSift, and only call detect
+
+    string ty = type2str( img.type() );
+    printf("Mat : %s, %d, %d\n", ty.c_str(), img.rows, img.cols);
+
     _pfd->detect(img, keypoints);
+    
+    cout << "---- keypoints.size() = " << keypoints.size() << endl;
+    /*
+    int i = 0;
+    for (KeyPoint &keypoint : keypoints) {
+        if (i > 10)
+            break;
+        cout << "keypoint " << i++ << endl;
+        cout << "\tcoord: " << keypoint.pt << endl;
+        cout << "\tangle: " << keypoint.angle << endl;
+        cout << "\toctave: " << keypoint.octave << endl;
+        cout << "\tsize: " << keypoint.size << endl;
+    }
+    */
+    
 
     _pde->compute(img, keypoints, descriptors);
+
+    cout << "Total number of desc elements : " << descriptors.total() << endl;
+    cout << "desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
+
+    /*
+    int k = 0;
+    for (int i = 0; i < descriptors.rows; i++) {
+        if (i > 10)
+            break;
+        //cout << "Row " << i << " : " << descriptors.row(i) << endl;
+        
+        for (int j = 0; j < descriptors.cols; j++) {
+            if (k++ > 10)
+                break;
+        }
+        
+    }
+    */
+
+
+    //cout << " ---- compute() called: descriptors data: " << endl << descriptors << endl;
 
     if (_extractorType == EXTRACT_RootSIFT) {
         applyRootSIFT(descriptors);
@@ -89,6 +160,8 @@ FeatureMethod::getDetectorKey(int dt) {
             return "SIFT";
         case (DETECT_SURF):
             return "SURF";
+        case (DETECT_POPSIFT):
+            return "POPSIFT";
     }
 
     return "not supported";
@@ -110,6 +183,7 @@ FeatureMethod::getDetectorType(string key) {
     if (key == "SIFT") return DETECT_SIFT;
     if (key == "STAR") return DETECT_STAR;
     if (key == "SURF") return DETECT_SURF;
+    if (key == "POPSIFT") return DETECT_POPSIFT;
 
     return -1;
 
@@ -143,6 +217,10 @@ FeatureMethod::getExtractorKey(int et) {
 
         case (EXTRACT_RootSIFT):
             return "RootSIFT";
+        
+        case (EXTRACT_POPSIFT):
+            return "POPSIFT";
+
     }
 
     return "not supported";
@@ -180,6 +258,7 @@ FeatureMethod::getExtractorType(string key) {
 
     if (key == "RootSIFT") return EXTRACT_RootSIFT;
 
+    if (key == "POPSIFT") return EXTRACT_POPSIFT;
 
     return -1;
 
@@ -270,6 +349,9 @@ FeatureMethod::_init(int detectorType, int extractorType) {
         case (DETECT_SURF):
             _pfd = xfeatures2d::SURF::create();
             break;
+        case (DETECT_POPSIFT):
+            _pfd = PopSiftDetector::create();
+            break;
     }
 
     int d = detectorType;
@@ -282,7 +364,9 @@ FeatureMethod::_init(int detectorType, int extractorType) {
             (d == DETECT_MSER && e == EXTRACT_MSER) ||
             (d == DETECT_ORB && e == EXTRACT_ORB) ||
             (d == DETECT_SIFT && e == EXTRACT_SIFT) ||
-            (d == DETECT_SURF && e == EXTRACT_SURF)) {
+            (d == DETECT_SURF && e == EXTRACT_SURF) ||
+            (d == DETECT_POPSIFT && e == EXTRACT_POPSIFT)
+        ) {
         _pde = _pfd;
     } else {
 
@@ -321,6 +405,11 @@ FeatureMethod::_init(int detectorType, int extractorType) {
             case (EXTRACT_RootSIFT):
                 _pde = SIFT::create();
                 break;
+
+            // Not supported to extract with PopSift without also detecting with PopSift
+            //case (EXTRACT_POPSIFT):
+            //    _pde = PopSiftDetector::create();
+            
         }
 
 

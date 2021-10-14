@@ -1,4 +1,4 @@
-//Copyright (C) 2016, Esteban Uriza <estebanuri@gmail.com>
+#//Copyright (C) 2016, Esteban Uriza <estebanuri@gmail.com>
 //This program is free software: you can use, modify and/or
 //redistribute it under the terms of the GNU General Public
 //License as published by the Free Software Foundation, either
@@ -19,6 +19,8 @@
 #include <features.h>
 
 #include "Configuration.h"
+
+#include "PopSiftDetector.h"
 
 
 using namespace cv;
@@ -62,6 +64,7 @@ public:
     static const int DETECT_DAISY = 9;
     static const int DETECT_SIFT = 10;
     static const int DETECT_SURF = 11;
+    static const int DETECT_POPSIFT = 12; // Added
 
     /**
      * 	Available Descriptor Extractors:
@@ -85,6 +88,8 @@ public:
     static const int EXTRACT_SURF = 10;
 
     static const int EXTRACT_RootSIFT = 11;
+
+    static const int EXTRACT_POPSIFT = 12; // Added
 
 
     /**
