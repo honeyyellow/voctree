@@ -13,7 +13,17 @@
 
 #include <opencv2/features2d/features2d.hpp>
 
+// PopSIFT includes
+#include <popsift/popsift.h>
+#include <popsift/sift_pyramid.h>
+#include <popsift/sift_octave.h>
+#include <popsift/common/device_prop.h>
+
+#include "SiftParams.h"
+
 using namespace std;
+
+//class PopSift;
 
 namespace cv {
 
@@ -24,7 +34,7 @@ public:
 
     static Ptr<PopSiftDetector> create();
 
-    CV_WRAP void detect(InputArray image,
+    CV_WRAP void detect(InputArray _image,
                 CV_OUT std::vector<KeyPoint> &keypoints,
                 InputArray mask = noArray() );
     
@@ -32,14 +42,22 @@ public:
                 CV_OUT std::vector<std::vector<KeyPoint> > &keypoints,
                 InputArrayOfArrays masks = noArray() );
     
-    CV_WRAP void compute(InputArray image,
+    CV_WRAP void compute(InputArray _image,
                 CV_OUT CV_IN_OUT std::vector<KeyPoint> &keypoints,
                 OutputArray descriptors );
     
-    CV_WRAP void compute(InputArrayOfArrays image,
+    CV_WRAP void compute(InputArrayOfArrays images,
                 CV_OUT CV_IN_OUT std::vector<std::vector<KeyPoint> > &keypoints,
                 OutputArrayOfArrays descriptors );
     
+    int defaultNorm() const CV_OVERRIDE;
+
+private:
+
+    SiftParams _params; //TODO - what to do with this?? Check SiftParams.h
+    bool _isOriented = true;
+    static std::unique_ptr<PopSift> _popSift;
+    void resetConfiguration();
 };
 
 } /* namespace cv */
