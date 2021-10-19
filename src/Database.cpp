@@ -199,13 +199,12 @@ Database::processPicture(FileHelper::Entry &ent, bool forVocabulary) {
     string fileName = ent.fullName();
 
     Mat img;
-
     FeatureMethod fm = _fm;
+    
     if (fm.getDetectorKey() == "POPSIFT")
-        img = imread(fileName.c_str(), IMREAD_GRAYSCALE);
+        img = imread(fileName.c_str(), IMREAD_GRAYSCALE);    
     else
         img = imread(fileName.c_str());
-
 
     if (!img.data) {
         cout << " warning! cannot process file." << endl;
@@ -226,8 +225,9 @@ Database::processPicture(FileHelper::Entry &ent, bool forVocabulary) {
         string relName = ent.relName();
         registerElem(relName, keypoints, descriptors, forVocabulary);
 
-
     }
+
+    writeKeypointsToFile(fileName, keypoints); // Call to inspect output
 
     return;
 
@@ -1148,6 +1148,50 @@ string
 Database::getPath() {
     return _path;
 }
+
+
+bool keypointComparator(const KeyPoint &leftKp, const KeyPoint &rightKp) {
+    if (leftKp.pt.x == rightKp.pt.x)
+        return leftKp.pt.y < rightKp.pt.y;
+
+    return leftKp.pt.x < rightKp.pt.x;
+}
+
+
+void
+Database::writeKeypointsToFile(string filepath, vector<KeyPoint> &keypoints) {
+
+    ofstream outFile;
+    string featureMethodType = _fm.getDetectorKey();
+
+    // Config filename of output
+    size_t found = filepath.find_last_of("/");
+    string filename = filepath.substr(found+1);
+    string filename_wo_ext = filename.substr(0, filename.find_last_of("."));
+    string outFileName = "src/out/" + filename_wo_ext + "_" + featureMethodType + "_keypoints_output.txt";
+
+    outFile.open(outFileName);
+    if (!outFile) 
+        cerr << "File '"<< outFileName << "' for keypoints output could not be opened" << endl;
+
+    if (featureMethodType == "POPSIFT") {
+        // Copy for sorting
+        vector<KeyPoint> keypointsCopy = keypoints;
+        sort(keypointsCopy.begin(), keypointsCopy.end(), &keypointComparator);
+
+        for (const KeyPoint &kp: keypointsCopy) {
+            outFile << "Position: " << kp.pt << ", Size: " << kp.size << ", Angle: " << kp.angle << ", Octave: " << kp.octave << ", Response: " << kp.response << endl;
+        }
+    } else {
+        for (const KeyPoint &kp: keypoints) {
+            outFile << "Position: " << kp.pt << ", Size: " << kp.size << ", Angle: " << kp.angle << ", Octave: " << kp.octave << ", Response: " << kp.response << endl;
+        }
+    }
+
+    outFile.close();
+
+}
+
 
 
 

@@ -324,6 +324,9 @@ private:
 
     void loadDBConfig();
 
+    //Added
+    void writeKeypointsToFile(string filename, vector<KeyPoint> &keypoints);
+
 };
 
 #endif /* DATABASE_H_ */
