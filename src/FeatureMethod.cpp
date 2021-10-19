@@ -84,12 +84,29 @@ FeatureMethod::detectAndCompute(Mat &img, vector<KeyPoint> &keypoints, Mat &desc
     //TODO - Since PopSift does both at the same time, if to check if using PopSift
     // If to chech if pfd is popSift, and only call detect
 
-    string ty = type2str( img.type() );
-    printf("Mat : %s, %d, %d\n", ty.c_str(), img.rows, img.cols);
+    //string ty = type2str( img.type() );
+    //printf("Mat : %s, %d, %d\n", ty.c_str(), img.rows, img.cols);
 
-    _pfd->detect(img, keypoints);
+    if (_detectorType == DETECT_POPSIFT) {
+        // PopSift detects keypoints and computes descriptors simultaneously
+        _pde->compute(img, keypoints, descriptors);
+        //cout << "---- keypoints.size() = " << keypoints.size() << endl;
+        //cout << "Total number of desc elements : " << descriptors.total() << endl;
+        //cout << "desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
+    } else {
+        _pfd->detect(img, keypoints);
+        //cout << "---- keypoints.size() = " << keypoints.size() << endl;
+
+        _pde->compute(img, keypoints, descriptors);
+
+
+        //cout << "---- keypoints.size() AFTER COMPUTE = " << keypoints.size() << endl;
+
+        //cout << "Total number of desc elements : " << descriptors.total() << endl;
+        //cout << "desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
+
+    }
     
-    cout << "---- keypoints.size() = " << keypoints.size() << endl;
     /*
     int i = 0;
     for (KeyPoint &keypoint : keypoints) {
@@ -102,12 +119,6 @@ FeatureMethod::detectAndCompute(Mat &img, vector<KeyPoint> &keypoints, Mat &desc
         cout << "\tsize: " << keypoint.size << endl;
     }
     */
-    
-
-    _pde->compute(img, keypoints, descriptors);
-
-    cout << "Total number of desc elements : " << descriptors.total() << endl;
-    cout << "desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
 
     /*
     int k = 0;
@@ -123,7 +134,6 @@ FeatureMethod::detectAndCompute(Mat &img, vector<KeyPoint> &keypoints, Mat &desc
         
     }
     */
-
 
     //cout << " ---- compute() called: descriptors data: " << endl << descriptors << endl;
 
