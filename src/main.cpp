@@ -23,7 +23,6 @@
 #include "FeatureMethod.h"
 #include "Database.h"
 
-
 #include "Server.h"
 
 
@@ -107,7 +106,9 @@ void buildDatabase(string dbPath, int argc, char **argv) {
 
     bool reuseFeatures = false;
 
-    string method = "SIFT:SIFT";
+    //string method = "SIFT:SIFT";
+    string method = "POPSIFT:POPSIFT";
+    
     string vtParams = "10:6";
     string strPCA = "0";
 
@@ -170,6 +171,7 @@ void buildDatabase(string dbPath, int argc, char **argv) {
     Database::build(dbPath, fm, reuseFeatures, k, h, maxFiles, maxFilesVocabulary, reuseVocabulary, pca);
     cout << "build done." << endl << flush;
 
+    //TODO - uninit popSift here
 
     return;
 }
@@ -359,16 +361,7 @@ void printHelp(string cmd, string option) {
  * main entry point for the application
  */
 
-int main(int argc, char **argv) {
-
-    popsift::Config config;
-    PopSift PopSift( config,
-                     popsift::Config::ExtractingMode,
-                      PopSift::ByteImages );
-
-    cout << "Hello!" << endl;
-    std::cout << "PopSift version: " << POPSIFT_VERSION_STRING << std::endl;
-
+int main(int argc, char **argv) {    
 
     string cmd = argv[0];
 
