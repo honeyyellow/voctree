@@ -27,7 +27,7 @@ using namespace std;
 
 namespace cv {
 
-class PopSiftDetector: public FeatureDetector {
+class PopSiftDetector: public Feature2D {
 public:
 
     PopSiftDetector();
@@ -44,7 +44,7 @@ public:
     
     CV_WRAP void compute(InputArray _image,
                 CV_OUT CV_IN_OUT std::vector<KeyPoint> &keypoints,
-                OutputArray descriptors );
+                OutputArray _descriptors );
     
     CV_WRAP void compute(InputArrayOfArrays images,
                 CV_OUT CV_IN_OUT std::vector<std::vector<KeyPoint> > &keypoints,
