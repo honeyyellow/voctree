@@ -23,52 +23,6 @@ void PopSiftDetector::detect(InputArray _image,
                 InputArray mask)
 {
     cout << "PopSiftDetector::detect() called..." << endl;
-    //TODO - call popsift in order to detect and compute 
-
-    Mat image = _image.getMat();
-
-    // Called by OpenCV to check input for detectAndCompute(), but probably not needed
-    // for PopSift
-    /*
-    if (image.empty() || image.depth() != CV_8U )
-        CV_Error(Error::StsBadArg, "image is empty or has incorrect depth (!=CV_8U)");
-    
-    if (!mask.empty() && mask.type() != CV_8UC1)
-        CV_Error(Error::StsBadArg, "mask has incorrect type (!=CV_8UC1");
-    */
-
-    uchar *img_ptr = image.ptr<uchar>(0); 
-    std::unique_ptr<SiftJob> job(_popSift->enqueue(image.cols, image.rows, img_ptr));
-    std::unique_ptr<popsift::Features> popFeatures(job->get());
-
-    cout << "PopSIFT features count : " << popFeatures->getFeatureCount() << ", PopSIFT descriptor count :" << popFeatures->getDescriptorCount() << endl;
-
-    for (const auto& popFeat: *popFeatures)
-    {
-        // Add every feature in the keypoints array
-        KeyPoint kp = KeyPoint(popFeat.xpos, popFeat.ypos, popFeat.sigma);
-        keypoints.push_back(kp);
-
-        // Add every
-        std::vector<unsigned char> descriptors(128);
-        const popsift::Descriptor* popDesc = popFeat.desc[0];
-
-        for (std::size_t i = 0; i < 128; i++) {
-            descriptors.push_back(static_cast<unsigned char>(popDesc->features[i]));
-        }
-
-
-
-
-        // loop through all descriptors for this keypoint
-        /*
-        for (int orientationIndex = 0; orientationIndex < popFeat.num_ori; orientationIndex++)
-        {} */
-
-
-    }
-
-
 }
 
 void PopSiftDetector::detect(InputArrayOfArrays images,
@@ -82,7 +36,6 @@ void PopSiftDetector::compute(InputArray _image,
                 CV_OUT CV_IN_OUT std::vector<KeyPoint> &keypoints,
                 OutputArray _descriptors)
 {
-
     Mat image = _image.getMat();
 
     // Use popSift to detect keypoints/features and compute descriptors
@@ -108,7 +61,9 @@ void PopSiftDetector::compute(InputArray _image,
         KeyPoint kp(popFeat.xpos, popFeat.ypos, popFeat.sigma, -1, 0, popFeat.debug_octave);
 
         for (int orientationIndex = 0; orientationIndex < popFeat.num_ori; ++orientationIndex) {
-            
+
+            kp.angle = popFeat.orientation[orientationIndex]; // added
+            //cout << "printing out angle from popsift: " << kp.angle << endl;
             keypoints.push_back(kp);
 
             const popsift:: Descriptor* popDesc = popFeat.desc[orientationIndex];
@@ -120,9 +75,6 @@ void PopSiftDetector::compute(InputArray _image,
 
             ++matRow;
         }
-
-        //const popsift::Descriptor* popDesc = popFeat.desc[0]; // just extracting one descriptor for now
-
     }
 
 }
