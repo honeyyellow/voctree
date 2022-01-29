@@ -1153,10 +1153,9 @@ Database::getPath() {
 bool keypointComparator(const KeyPoint &leftKp, const KeyPoint &rightKp) {
     if (leftKp.pt.x == rightKp.pt.x)
         return leftKp.pt.y < rightKp.pt.y;
-
+        
     return leftKp.pt.x < rightKp.pt.x;
 }
-
 
 void
 Database::writeKeypointsToFile(string filepath, vector<KeyPoint> &keypoints) {
@@ -1168,28 +1167,43 @@ Database::writeKeypointsToFile(string filepath, vector<KeyPoint> &keypoints) {
     size_t found = filepath.find_last_of("/");
     string filename = filepath.substr(found+1);
     string filename_wo_ext = filename.substr(0, filename.find_last_of("."));
-    string outFileName = "src/out/" + filename_wo_ext + "_" + featureMethodType + "_keypoints_output.txt";
+    string outFileName = "src/out_" + featureMethodType + "/" + filename_wo_ext + "_keypoints_output.txt";
 
     outFile.open(outFileName);
     if (!outFile) 
         cerr << "File '"<< outFileName << "' for keypoints output could not be opened" << endl;
 
     if (featureMethodType == "POPSIFT") {
-        // Copy for sorting
+        // Copy for sorting, POPSIFT does not find keypoints in
+        // ascending order, according to coordinages.
+        // keypointComparator defined above this function.
         vector<KeyPoint> keypointsCopy = keypoints;
         sort(keypointsCopy.begin(), keypointsCopy.end(), &keypointComparator);
 
         for (const KeyPoint &kp: keypointsCopy) {
             outFile << "Position: " << kp.pt << ", Size: " << kp.size << ", Angle: " << kp.angle << ", Octave: " << kp.octave << ", Response: " << kp.response << endl;
         }
-    } else {
-        for (const KeyPoint &kp: keypoints) {
-            outFile << "Position: " << kp.pt << ", Size: " << kp.size << ", Angle: " << kp.angle << ", Octave: " << kp.octave << ", Response: " << kp.response << endl;
+    }
+
+
+
+    for (const KeyPoint &kp: keypoints) {
+
+        if (featureMethodType == "SIFT") {
+            // unpack octave value
+            // source: https://answers.opencv.org/question/12049/sift-octave-bug/
+            // source: https://github.com/opencv/opencv/blob/4.x/modules/features2d/src/sift.dispatch.cpp
+
+            int octave = kp.octave & 255;
+            if (octave >= 128) {
+                octave = -128 | octave;
+            }
+            
+            outFile << "Position: " << kp.pt << ", Size: " << kp.size << ", Angle: " << kp.angle << ", Octave: " << octave << ", Response: " << kp.response << endl;
         }
     }
 
     outFile.close();
-
 }
 
 
