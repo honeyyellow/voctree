@@ -52,8 +52,11 @@ public:
     
     int defaultNorm() const CV_OVERRIDE;
 
+    int getDevice();
+
 private:
 
+    int cudaDevice;
     SiftParams _params; //TODO - what to do with this?? Check SiftParams.h
     bool _isOriented = true;
     static std::unique_ptr<PopSift> _popSift;

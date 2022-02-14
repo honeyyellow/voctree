@@ -36,6 +36,12 @@ void PopSiftDetector::compute(InputArray _image,
                 CV_OUT CV_IN_OUT std::vector<KeyPoint> &keypoints,
                 OutputArray _descriptors)
 {
+
+    cudaError_t err = cudaGetDevice(&cudaDevice);
+    if (err != cudaSuccess) {
+        cout << "found error in PopSiftDetector..." << err << ", device is " << cudaDevice << endl;
+    }
+
     Mat image = _image.getMat();
 
     // Use popSift to detect keypoints/features and compute descriptors
@@ -97,8 +103,7 @@ void PopSiftDetector::resetConfiguration()
     // on the current device in the current process
     cudaDeviceReset();
 
-    popsift::cuda::device_prop_t deviceInfo;
-    deviceInfo.set(0, true);
+    //deviceInfo.set(0, true);
 
     popsift::Config config;
     config.setLevels(_params._numScales);
@@ -112,7 +117,56 @@ void PopSiftDetector::resetConfiguration()
     // Used to limit to amount of keypoints found - not necessarily needed
     // config.setFilterMaxExtrema(_params._maxTotalKeypoints);
     // config.setFilterSorting(popsift::GridFilterConfig::LargestScaleFirst);
-    
-    _popSift.reset(new PopSift(config, popsift::Config::ExtractingMode, PopSift::ByteImages));
 
+    // error check loop her
+    int deviceCt, device;
+    cudaError_t err = cudaGetDeviceCount(&deviceCt);
+    cout << "device count : " << deviceCt << endl;
+    // TODO - add error handling when err != cudaSuccess
+
+    size_t availMem, avail, dummy;
+    availMem = 0;
+
+    for (int i = 0; i < deviceCt; i++) {
+
+        err = cudaSetDevice(i);
+
+        // replicate error in popsift
+        //err = cudaGetDevice(&chooseDevice);
+
+        if (err == cudaSuccess) {
+
+            cudaMemGetInfo(&avail, &dummy);
+            if (avail > availMem) {
+                availMem = avail;
+                device = i;
+                //deviceInfo.set(i);
+                cout << "Found device " << i << " with memory " << avail << endl;
+            }
+
+            /*
+            deviceInfo.set(device);
+            cout << "Found device " << device << endl;
+            break;
+            */
+        }
+    }
+
+    //err = cudaGetDevice(&device);
+
+    if (err == cudaSuccess) {
+        cudaDevice = device;
+        cout << "Choosing device " << cudaDevice << endl;
+        popsift::cuda::device_prop_t deviceInfo;
+        deviceInfo.set(cudaDevice);
+
+         _popSift.reset(new PopSift(config, popsift::Config::ExtractingMode, PopSift::ByteImages, cudaDevice)); // fjerde parameter som er devicen
+    } else {
+        cout << "reached error..." << endl;
+    }
+
+}
+
+int PopSiftDetector::getDevice() {
+    return cudaDevice;
 }

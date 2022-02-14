@@ -89,16 +89,19 @@ FeatureMethod::detectAndCompute(Mat &img, vector<KeyPoint> &keypoints, Mat &desc
 
     if (_detectorType == DETECT_POPSIFT) {
         // PopSift detects keypoints and computes descriptors simultaneously
+
         _pde->compute(img, keypoints, descriptors);
+
+        /* ---- debug stdouts ---- */
         //cout << "---- keypoints.size() = " << keypoints.size() << endl;
         //cout << "Total number of desc elements : " << descriptors.total() << endl;
         //cout << "desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
+
     } else {
         _pfd->detect(img, keypoints);
         //cout << "---- keypoints.size() = " << keypoints.size() << endl;
 
         _pde->compute(img, keypoints, descriptors);
-
 
         //cout << "---- keypoints.size() AFTER COMPUTE = " << keypoints.size() << endl;
 
