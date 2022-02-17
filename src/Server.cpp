@@ -300,7 +300,8 @@ void listenForClients(int port, Ptr<Database> db) {
 
         }
 
-
+        processClient(newsockfd, db);
+        /*
         //Create child process
         int pid = fork();
         if (pid < 0) {
@@ -322,6 +323,7 @@ void listenForClients(int port, Ptr<Database> db) {
             close(newsockfd);
 
         }
+        */
 
     }
 
