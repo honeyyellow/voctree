@@ -201,7 +201,8 @@ Database::processPicture(FileHelper::Entry &ent, bool forVocabulary) {
     Mat img;
     FeatureMethod fm = _fm;
     
-    if (fm.getDetectorKey() == "POPSIFT")
+    
+    if (fm.getDetectorKey() == "POPSIFT") // PopSift only supports grayscale images
         img = imread(fileName.c_str(), IMREAD_GRAYSCALE);    
     else
         img = imread(fileName.c_str());
@@ -765,7 +766,7 @@ Database::Database(string path, bool update) {
     cout << "loading descriptors..." << endl;
 
     // load voctree
-    cout << "loading voctree..." << endl;
+    cout << "loading voctree... : _path = " << _path << endl;
     _vt = new VocTree(_path);
 
     if (_usePCA) {
@@ -919,7 +920,11 @@ Database::readResource(string &fileName) {
 
     } else {
         // its an image.
-        img = imread(fileName.c_str());
+
+        if (_fm.getDetectorKey() == "POPSIFT") // PopSift only supports grayscale images
+            img = imread(fileName.c_str(), IMREAD_GRAYSCALE);
+        else
+            img = imread(fileName.c_str());
     }
 
     return img;
@@ -1115,6 +1120,7 @@ Database::query(string &fileName,
         return;
     }
 
+    // not used
     if (_usePCA) {
         cout << "Projecting PCA..." << endl;
         _pca->project(qDescriptors, qDescriptors);
