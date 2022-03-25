@@ -77,19 +77,11 @@ applyRootSIFT(Mat &descriptors, double eps = 1e-7) {
 void
 FeatureMethod::detectAndCompute(Mat &img, vector<KeyPoint> &keypoints, Mat &descriptors) {
 
-    cout << " ---- FeatureMethod::detectAndCompute() called." << endl;
-
-    //cout << "img (rows, cols) : (" << img.rows << ", " << img.cols << ")" << endl;
-
-    //TODO - Since PopSift does both at the same time, if to check if using PopSift
-    // If to chech if pfd is popSift, and only call detect
-
-    //string ty = type2str( img.type() );
-    //printf("Mat : %s, %d, %d\n", ty.c_str(), img.rows, img.cols);
+    //cout << " ---- FeatureMethod::detectAndCompute() called." << endl;
 
     if (_detectorType == DETECT_POPSIFT) {
-        // PopSift detects keypoints and computes descriptors simultaneously
 
+        // PopSift detects keypoints and computes descriptors simultaneously
         _pde->compute(img, keypoints, descriptors);
 
         /* ---- debug stdouts ---- */
@@ -103,42 +95,10 @@ FeatureMethod::detectAndCompute(Mat &img, vector<KeyPoint> &keypoints, Mat &desc
 
         _pde->compute(img, keypoints, descriptors);
 
-        //cout << "---- keypoints.size() AFTER COMPUTE = " << keypoints.size() << endl;
-
         //cout << "Total number of desc elements : " << descriptors.total() << endl;
         //cout << "desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
 
     }
-    
-    /*
-    int i = 0;
-    for (KeyPoint &keypoint : keypoints) {
-        if (i > 10)
-            break;
-        cout << "keypoint " << i++ << endl;
-        cout << "\tcoord: " << keypoint.pt << endl;
-        cout << "\tangle: " << keypoint.angle << endl;
-        cout << "\toctave: " << keypoint.octave << endl;
-        cout << "\tsize: " << keypoint.size << endl;
-    }
-    */
-
-    /*
-    int k = 0;
-    for (int i = 0; i < descriptors.rows; i++) {
-        if (i > 10)
-            break;
-        //cout << "Row " << i << " : " << descriptors.row(i) << endl;
-        
-        for (int j = 0; j < descriptors.cols; j++) {
-            if (k++ > 10)
-                break;
-        }
-        
-    }
-    */
-
-    //cout << " ---- compute() called: descriptors data: " << endl << descriptors << endl;
 
     if (_extractorType == EXTRACT_RootSIFT) {
         applyRootSIFT(descriptors);
