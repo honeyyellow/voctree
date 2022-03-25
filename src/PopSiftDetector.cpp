@@ -37,11 +37,6 @@ void PopSiftDetector::compute(InputArray _image,
                 OutputArray _descriptors)
 {
 
-    cudaError_t err = cudaGetDevice(&cudaDevice);
-    if (err != cudaSuccess) {
-        cout << "found error in PopSiftDetector..." << err << ", device is " << cudaDevice << endl;
-    }
-
     Mat image = _image.getMat();
 
     // Use popSift to detect keypoints/features and compute descriptors
@@ -49,7 +44,7 @@ void PopSiftDetector::compute(InputArray _image,
     std::unique_ptr<SiftJob> job(_popSift->enqueue(image.cols, image.rows, img_ptr));
     std::unique_ptr<popsift::Features> popFeatures(job->get());
 
-    cout << "PopSIFT features count : " << popFeatures->getFeatureCount() << ", PopSIFT descriptor count :" << popFeatures->getDescriptorCount() << endl;
+    //cout << "PopSIFT features count : " << popFeatures->getFeatureCount() << ", PopSIFT descriptor count :" << popFeatures->getDescriptorCount() << endl;
 
     keypoints.reserve(popFeatures->getDescriptorCount());
 
@@ -57,7 +52,7 @@ void PopSiftDetector::compute(InputArray _image,
     _descriptors.create((int)popFeatures->getDescriptorCount(), 128, CV_32F);
     Mat descriptors = _descriptors.getMat();
 
-    cout << "POPSIFT::desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
+    //cout << "POPSIFT::desc (rows, cols) : (" << descriptors.rows << ", " << descriptors.cols << ")" << endl;
 
     int matRow = 0;
 
@@ -161,6 +156,7 @@ void PopSiftDetector::resetConfiguration()
         deviceInfo.set(cudaDevice);
 
          _popSift.reset(new PopSift(config, popsift::Config::ExtractingMode, PopSift::ByteImages, cudaDevice)); // fjerde parameter som er devicen
+
     } else {
         cout << "reached error..." << endl;
     }
