@@ -866,11 +866,17 @@ VocTree::findPath(Mat &descriptor) {
 
     path.push_back(idNode);
 
+    int numIters = 0;
+
+    // cout << "\t\t\tThe size of numCh : " << numCh << endl;
+
     while (!isLeaf(idNode)) {
 
         //Search the closest sub-cluster
         int idClosest = 0;
         double minDist = numeric_limits<int>::max();
+
+        numIters++;
 
         for (size_t i = 0; i < numCh; i++) {
 
@@ -883,11 +889,16 @@ VocTree::findPath(Mat &descriptor) {
                 idClosest = childId;
             }
 
+            numIters++;
+
         }
 
         idNode = idClosest;
         path.push_back(idNode);
+
     }
+
+    //cout << "\t\titerations in findPath: " << numIters << endl;
 
     return path;
 
@@ -931,16 +942,24 @@ VocTree::findLeaf(Mat &descriptor) {
 void
 VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
+    //cout << " --- New call to VocTree::query() --- " << endl << endl;
+    //cout << "\t\tdescriptors rows: " << descriptors.rows << endl;
+
     vector<float> q(_usedNodes, 0);
     double sum = 0;
+
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
 
         list<int> path = findPath(qDescr);
 
+        //cout << "\t\t\tpath.size() : " << path.size() << endl;
+
+        int path_iter_count = 0;
+
         // computes qi = ni * wi (see paper 4.1)
-        list<int>::iterator it = path.begin();
+        list<int>::iterator it = path.begin(); // inspect what this is
         for (; it != path.end(); it++) {
 
             int idNode = (*it);
@@ -955,9 +974,13 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
             }
 
+            path_iter_count++;
         }
-
+        //cout << "\t\t\tnumber of iterations before path.end() was reached : " << path_iter_count << endl;
     }
+
+     //cout << "\t\tq.size():" << q.size() << endl;
+
 
     //Now normalize q vector
     for (unsigned int i = 0; i < q.size(); i++) {
@@ -966,8 +989,12 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         //q[i] /= sum*sum; // L2
     }
 
+    //cout << "result.size(): " << result.size() << endl;
+
     //Now perform |q - d| for every d database element
-    result.resize(_dbSize);
+    result.resize(_dbSize); // increases the size. 
+
+    //cout << "result.size() after resize: " << result.size() << endl;
 
     //for (int m = 0; m < _dbSize; m++) {
     //	//cout << "setting score for " << m << endl;
@@ -977,12 +1004,21 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     //	match.score = 2;
     //}
 
+    int compsOverThresCount = 0;
+
     //cout << "non-zero count:" << _d_vectors.nzCount() << endl;
     for (unsigned int idxNode = 0; idxNode < q.size(); idxNode++) {
         float qi = q[idxNode];
         if (qi > 0) {
 
             vector<DComponent> &comps = _dVectors.at(idxNode);
+
+            if (comps.size() > 15) {
+                compsOverThresCount++;
+                //cout << "comps.size(): " << comps.size() << endl;
+            }
+                
+            
             for (unsigned int pos = 0; pos < comps.size(); pos++) {
 
                 DComponent &dc = comps.at(pos);
@@ -996,11 +1032,12 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
                 //match.score += (diff*diff - di*di - qi*qi); // L2
                 //match.score -= (2 * qi * di); // L2
 
-
             }
 
         }
     }
+
+    //cout << "comps.size() over 15: " << compsOverThresCount << endl;
 
 
     //Now, sort the matching vector from highest to lowest score
