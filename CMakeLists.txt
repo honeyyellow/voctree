@@ -1,5 +1,5 @@
-PROJECT(voctree)
-cmake_minimum_required(VERSION 2.8)
+PROJECT(voctree LANGUAGES CXX CUDA)
+cmake_minimum_required(VERSION 3.8)
 
 IF(CMAKE_BUILD_TYPE MATCHES Release)
     message("Release mode")
@@ -19,3 +19,6 @@ find_package(OpenCV REQUIRED)
 find_package(PopSift CONFIG REQUIRED)
 
 add_subdirectory(src)
+
+# Added by me
+# set_target_properties(engine PROPERTIES LINKER_LANGUAGE CUDA)

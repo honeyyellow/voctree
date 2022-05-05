@@ -2,8 +2,8 @@
 #OPENCV_DIR = ~/opencv/installed/3.1.0
 OPENCV_DIR = /usr/local
 
-CC=g++
-CFLAGS=-c -Wall -O3
+CC=nvcc # g++ 
+CFLAGS= -arch=sm_75 # -c -Wall -O3
 LIBS=-L $(OPENCV_DIR)/lib \
 	-lopencv_core \
 	-lopencv_highgui \
@@ -20,24 +20,24 @@ SDIR = src
 ODIR = .
 EXEC = vt
 
-SOURCES=FileHelper.cpp \
-	Configuration.cpp \
-	Catalog.cpp \
-	FileManager.cpp \
-	Database.cpp \
-	KeyPointPersistor.cpp \
-	ExtKmeans.cpp \
-	FeatureMethod.cpp \
-	MatPersistor.cpp \
-	Matching.cpp \
-	ShootSegmenter.cpp \
-	VocTree.cpp \
-	KMeans.cpp \
-	Server.cpp \
-	main.cpp
+SOURCES=FileHelper.cu \
+	Configuration.cu \
+	Catalog.cu \
+	FileManager.cu \
+	Database.cu \
+	KeyPointPersistor.cu \
+	ExtKmeans.cu \
+	FeatureMethod.cu \
+	MatPersistor.cu \
+	Matching.cu \
+	ShootSegmenter.cu \
+	VocTree.cu \
+	KMeans.cu \
+	Server.cu \
+	main.cu
 
 
-OBJECTS=$(SOURCES:.cpp=.o)
+OBJECTS=$(SOURCES:.cu=.o)
 
 
 INC=-I $(SDIR)/ \
@@ -51,7 +51,7 @@ OBJS = $(addprefix $(ODIR)/, $(OBJECTS))
 
 all: $(OBJS) $(EXEC) clean_objs
 
-$(ODIR)/%.o: $(SDIR)/%.cpp 
+$(ODIR)/%.o: $(SDIR)/%.cu 
 	$(CC) $(INC) $(CFLAGS) -o $@ $<
 
 $(EXEC): $(OBJS)

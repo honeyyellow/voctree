@@ -1,41 +1,43 @@
 set(NAME engine)
 
 set(SOURCES
-        Catalog.cpp
+        Catalog.cu
         Catalog.h
-        Configuration.cpp
+        Configuration.cu
         Configuration.h
-        Database.cpp
+        Database.cu
         Database.h
-        ExtKmeans.cpp
+        ExtKmeans.cu
         ExtKmeans.h
-        FeatureMethod.cpp
+        FeatureMethod.cu
         FeatureMethod.h
-        FileHelper.cpp
+        FileHelper.cu
         FileHelper.h
-        FileManager.cpp
+        FileManager.cu
         FileManager.h
-        KeyPointPersistor.cpp
+        KeyPointPersistor.cu
         KeyPointPersistor.h
-        KMeans.cpp
+        KMeans.cu
         KMeans.h
-        main.cpp
-        Matching.cpp
+        main.cu
+        Matching.cu
         Matching.h
-        MatPersistor.cpp
+        MatPersistor.cu
         MatPersistor.h
-	PopSiftDetector.cpp
+	PopSiftDetector.cu
 	PopSiftDetector.h
-        Server.cpp
+        Server.cu
         Server.h
-        ShootSegmenter.cpp
+        ShootSegmenter.cu
         ShootSegmenter.h
-        VecPersistor.hpp
-        VocTree.cpp
+        VecPersistor.h
+        VocTree.cu
         VocTree.h
 ) # SOURCES
 
 add_executable(${NAME} ${SOURCES})
-target_link_libraries(${NAME} PUBLIC PopSift::popsift)
-target_link_libraries(${NAME} ${OpenCV_LIBS})
+set_target_properties(${NAME} PROPERTIES CUDA_ARCHITECTURES "75")
+target_link_libraries(${NAME} PUBLIC PopSift::popsift ${OpenCV_LIBS})
+
+# target_link_libraries(${NAME} ${OpenCV_LIBS})
 
