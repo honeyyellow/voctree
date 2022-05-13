@@ -19,7 +19,7 @@
 #include "KMeans.h"
 
 // try this
-//#include "nvToolsExt.h"
+#include "nvToolsExt.h"
 
 using namespace cv;
 using namespace std;
@@ -873,6 +873,8 @@ VocTree::findPath(Mat &descriptor) {
 
     // cout << "\t\t\tThe size of numCh : " << numCh << endl;
 
+    cout << "_useNorm variable : " << _useNorm << endl;
+
     while (!isLeaf(idNode)) {
 
         //Search the closest sub-cluster
@@ -885,6 +887,8 @@ VocTree::findPath(Mat &descriptor) {
 
             int childId = idChild(idNode, i);
             int idxChild = _index[childId];
+
+            // TODO - port to CUDA
             double d = norm(descriptor, _centers.row(idxChild), _useNorm);
 
             if (i == 0 || d < minDist) {
@@ -941,16 +945,174 @@ VocTree::findLeaf(Mat &descriptor) {
 
 }
 
+__global__ void norm_dummy() {
+
+    
+
+}
+
+void
+VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, int limit) {
+        //cout << " --- New call to VocTree::query() --- " << endl << endl;
+
+        cout << "descriptors rows : " << descriptors.rows << endl;
+
+        //nvtxRangePush("__TEST__");
+        
+        // TODO - Find the size of the descriptors
+        size_t descriptorsSize = descriptors.rows * 128 * 4; // Each row is a bin of 128 CV_32F
+        float *descPtr = descriptors.ptr<float>(0);
+        float *cudaDescriptors;
+        cudaMallocManaged(&cudaDescriptors, descriptorsSize);
+        cudaMemcpy(&cudaDescriptors, descPtr, descriptorsSize, cudaMemcpyHostToDevice);
+    
+        vector<float> q(_usedNodes, 0);
+        double sum = 0;
+    
+        // TODO - port to CUDA
+        for (int i = 0; i < descriptors.rows; i++) {
+    
+            Mat qDescr = descriptors.row(i);
+    
+            list<int> path = findPath(qDescr);
+    
+            //cout << "\t\t\tpath.size() : " << path.size() << endl;
+    
+            int path_iter_count = 0;
+    
+            // computes qi = ni * wi (see paper 4.1)
+            list<int>::iterator it = path.begin(); // inspect what this is
+            for (; it != path.end(); it++) {
+    
+                int idNode = (*it);
+                int idxNode = _index[idNode];
+    
+                float weight = _weights.at<float>(idxNode);
+                if (!(isinf(weight))) {
+    
+                    q[idxNode] += weight; // L1
+                    //q[ idxNode ] += (weight * weight); // L2
+                    sum += weight;
+    
+                }
+    
+                path_iter_count++;
+            }
+            //cout << "\t\t\tnumber of iterations before path.end() was reached : " << path_iter_count << endl;
+        }
+    
+        //nvtxRangePop();
+    
+         //cout << "\t\tq.size():" << q.size() << endl;
+    
+    
+        //Now normalize q vector
+        for (unsigned int i = 0; i < q.size(); i++) {
+            //q[i] = sqrt( q[i] / sum ); // Hellinger Kernel?
+            q[i] /= sum; // L1
+            //q[i] /= sum*sum; // L2
+        }
+    
+        //cout << "result.size(): " << result.size() << endl;
+    
+        //Now perform |q - d| for every d database element
+        result.resize(_dbSize); // increases the size. 
+    
+        //cout << "result.size() after resize: " << result.size() << endl;
+    
+        //for (int m = 0; m < _dbSize; m++) {
+        //	//cout << "setting score for " << m << endl;
+        //	Matching& match = result.at( m );
+        //	DBElem elem = _catalog.get(m);
+        //	match.id = elem.id;
+        //	match.score = 2;
+        //}
+    
+        int compsOverThresCount = 0;
+    
+        //cout << "non-zero count:" << _d_vectors.nzCount() << endl;
+        for (unsigned int idxNode = 0; idxNode < q.size(); idxNode++) {
+            float qi = q[idxNode];
+            if (qi > 0) {
+    
+                vector<DComponent> &comps = _dVectors.at(idxNode);
+    
+                if (comps.size() > 15) {
+                    compsOverThresCount++;
+                    //cout << "comps.size(): " << comps.size() << endl;
+                }
+                    
+                
+                for (unsigned int pos = 0; pos < comps.size(); pos++) {
+    
+                    DComponent &dc = comps.at(pos);
+                    float di = dc.value;
+                    float diff = abs(qi - di);
+    
+                    Matching &match = result.at(dc.idFile);
+                    match.id = dc.idFile;
+    
+                    match.score += (diff - di - qi); // L1
+                    //match.score += (diff*diff - di*di - qi*qi); // L2
+                    //match.score -= (2 * qi * di); // L2
+    
+                }
+    
+            }
+        }
+    
+        //cout << "comps.size() over 15: " << compsOverThresCount << endl;
+    
+    
+        //Now, sort the matching vector from highest to lowest score
+        //int limit = 100;
+        //	Ptr< vector<Matching> > res = new vector<Matching>( min(_dbSize, limit); );
+        //	partial_sort_copy(result.begin(), result.end(), res->begin(), res->end());
+    
+        sort(result.begin(), result.end());
+        if ((unsigned int) limit < result.size()) {
+            result.resize(limit);
+        }
+    
+    
+        double zeroEps = 1e-03;
+        int shrink = 0;
+        for (unsigned int i = 0; i < result.size(); i++) {
+            if (result[i].score < zeroEps) {
+                result[i].score = 0;
+            } else if (result[i].id == -1) {
+                shrink++;
+            }
+        }
+        if (shrink > 0) {
+            //cout << "shrinking" << shrink << endl;
+            result.resize(result.size() - shrink);
+        }
+    
+    
+}
+
 
 void
 VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
     //cout << " --- New call to VocTree::query() --- " << endl << endl;
-    //cout << "\t\tdescriptors rows: " << descriptors.rows << endl;
+
+    cout << "descriptors rows : " << descriptors.rows << endl;
+
+    //nvtxRangePush("__TEST__");
+    
+    // TODO - Find the size of the descriptors
+    size_t descriptorsSize = descriptors.rows * 128 * 4; // Each row is a bin of 128 CV_32F
+    float *descPtr = descriptors.ptr<float>(0);
+    float *cudaDescriptors;
+    cudaMallocManaged(&cudaDescriptors, descriptorsSize);
+    cudaMemcpy(&cudaDescriptors, descPtr, descriptorsSize, cudaMemcpyHostToDevice);
 
     vector<float> q(_usedNodes, 0);
     double sum = 0;
 
+    // TODO - port to CUDA
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
@@ -981,6 +1143,8 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         }
         //cout << "\t\t\tnumber of iterations before path.end() was reached : " << path_iter_count << endl;
     }
+
+    //nvtxRangePop();
 
      //cout << "\t\tq.size():" << q.size() << endl;
 

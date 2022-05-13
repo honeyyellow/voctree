@@ -69,6 +69,13 @@ public:
     void query(Mat &queryDescrs,
                vector<Matching> &result,
                int limit);
+    
+    /**
+     * Same as function above ported to the GPU.
+     */
+    void cudaQuery(Mat &queryDescrs,
+               vector<Matching> &result,
+               int limit);
 
     /**
      * updates the vocabulary tree with new images
