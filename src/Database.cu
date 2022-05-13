@@ -11,6 +11,8 @@
 #include "KeyPointPersistor.h"
 #include "ShootSegmenter.h"
 
+#include "nvToolsExt.h"
+
 
 using namespace cv;
 using namespace std;
@@ -28,6 +30,7 @@ Database::build(
     Ptr<Database> ret = new Database(path, fm, reuseFeatures, k, h, maxFiles, maxFilesVocabulary, reuseVocabulary,
                                      pca_dim
     );
+    
     return ret;
 }
 
@@ -1134,7 +1137,8 @@ Database::query(string &fileName,
 
 
     cout << "db:running query..." << endl;
-    _vt->query(qDescriptors, result, limit);
+    //_vt->query(qDescriptors, result, limit);
+    _vt->cudaQuery(qDescriptors, result, limit);
 
 
     if (_exports) {
