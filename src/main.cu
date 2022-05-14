@@ -18,6 +18,8 @@
 #include <string.h>
 
 #include <cv.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/opencv.hpp>
 
 #include "FileHelper.h"
 #include "FeatureMethod.h"
@@ -174,13 +176,6 @@ void buildDatabase(string dbPath, int argc, char **argv) {
     //TODO - uninit popSift here
 
     return;
-}
-
-void retrieveInput(string inputPath) {
-
-    VideoCapture(inputPath);
-    cout << "Input path : " << inputPath << endl;
-
 }
 
 /**
@@ -392,23 +387,7 @@ int main(int argc, char **argv) {
 
         return 0;
     }
-
-    if (strcasecmp(option.c_str(), "-getimg") == 0) {
-
-        if (argc < 3) {
-            cerr << "must specify video input file" << endl;
-            //printHelpOptions
-            return -1;
-        }
-
-        string videoInput = argv[2];
-
-        if (!FileHelper::exists(videoInput)) {
-            cerr << "could not find video input " << videoInput << endl;
-            return -1;
-        }
-    }
-
+    
 
     if (argc < 3) {
         cerr << "must specify database path" << endl;
