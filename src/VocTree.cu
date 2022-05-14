@@ -27,6 +27,31 @@ using namespace std;
 
 static const int DESCRIPTOR_SIZE = 128;
 
+// To retrieve type of opencv Mat object
+// https://stackoverflow.com/questions/10167534/how-to-find-out-what-type-of-a-mat-object-is-with-mattype-in-opencv
+string type2str(int type) {
+    string r;
+  
+    uchar depth = type & CV_MAT_DEPTH_MASK;
+    uchar chans = 1 + (type >> CV_CN_SHIFT);
+  
+    switch ( depth ) {
+      case CV_8U:  r = "8U"; break;
+      case CV_8S:  r = "8S"; break;
+      case CV_16U: r = "16U"; break;
+      case CV_16S: r = "16S"; break;
+      case CV_32S: r = "32S"; break;
+      case CV_32F: r = "32F"; break;
+      case CV_64F: r = "64F"; break;
+      default:     r = "User"; break;
+    }
+  
+    r += "C";
+    r += (chans+'0');
+  
+    return r;
+  }
+
 
 bool VocTree::isLeaf(int idNode) {
     int idxNode = _index[idNode];
@@ -58,7 +83,7 @@ VocTree::cluster(
 }
 
 
-void
+void 
 VocTree::cluster(
         int K,
         Mat &descriptors,
@@ -793,8 +818,72 @@ VocTree::computeInvertedIndex(int idNode, int level, vector<IIFEntry> &out) {
 
     }
 
+}
+
+
+void testIndexAndCudaIndexEquality(vector<int> &_index, int *_cudaIndex, int elemCount) {
+
+    if (_index.size() != elemCount) {
+        cout << "Element count in _index and _cudaIndex not equal. Test fail." << endl;
+        return;
+    }
+
+    for (int i = 0; i < elemCount; i++) {
+
+        int actual = _cudaIndex[i];
+        int expected = _index.at(i);
+
+        if (actual != expected) {
+            cout << "Error in index equality test at " << i << "Test fail." << endl;
+            return;
+        }
+
+    }
+
+    cout << "Index equality test SUCCESS." << endl;
 
 }
+
+
+
+void testFloatMatAndCudaMemoryEquality(Mat &mat, float *cudaMat, int rows, int cols) {
+
+    if (mat.rows != rows) {
+        cout << "Mat and Cuda mat does not have equal rows." << endl;
+        return;
+    }
+
+    if (mat.cols != cols) {
+        cout << "Mat and Cuda mat does not have equals cols." << endl;
+        return;
+    }
+    if (mat.cols * mat.rows * mat.elemSize() != rows * cols * sizeof(float)) {
+        cout << "Mat and cuda mat does not have equal size." << endl;
+        return;
+    }
+
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+
+            float expected = mat.at<float>(r, c);
+            float actual = cudaMat[r * cols + c];
+
+            if (expected != actual) {
+                
+                cout << "Error in equality in floating matrix at r, c : " << r << ", " << c << ", actual " << actual << ", expected " << expected << endl;
+                cout << "" << endl;
+                return;
+
+            }
+
+        }
+    }
+
+
+    cout << "Mat equality test SUCCESS." << endl;
+
+}
+
 
 
 void
@@ -808,15 +897,36 @@ VocTree::loadNodes(string &filePrefix) {
     vp.restore(fileIdx, _index);
     vp.restore(fileLeaves, _indexLeaves);
 
+    int indexElemCount, indexLeavesElemCount;
+
     //Added for mallocing _index and _indexLeaves to unified memory
-    vp.restoreIntUnifiedMem(fileIdx, _cudaIndex);
-    vp.restoreIntUnifiedMem(fileLeaves, _cudaIndexLeaves);
+    vp.restoreIntUnifiedMem(fileIdx, &_cudaIndex, &indexElemCount);
+    vp.restoreIntUnifiedMem(fileLeaves, &_cudaIndexLeaves, &indexLeavesElemCount);
+
+    // Test _index and _cudaIndex equality
+    testIndexAndCudaIndexEquality(_index, _cudaIndex, indexElemCount);
+    
+    // Test _cudaIndexLeaves and _indexLeaves equality
+    testIndexAndCudaIndexEquality(_indexLeaves, _cudaIndexLeaves, indexLeavesElemCount);
+
+    //cout << "After restoreIntUnifiedMem, at _cudaIndex " << _cudaIndex[0] << endl;
 
     MatPersistor mpc(fileCenters);
     mpc.openRead();
-    mpc.read(_centers); // read centers into unified memory
+    mpc.read(_centers); //TODO - read centers into unified memory
+
+    //mpc.close();
+
+    int rows, cols;
+
+    mpc.readUnifiedMem(&_cudaCenters, &rows, &cols);
     mpc.close();
 
+    // ERROR here
+    testFloatMatAndCudaMemoryEquality(_centers, _cudaCenters, rows, cols);
+    
+    // The type is 32FC1, 1 channel matrix of 32 bit floats
+    //cout << "The type of _centers Mat object : " << type2str(_centers.type()) << endl;
 
 }
 
@@ -1027,7 +1137,7 @@ __global__ void traverseDescriptors(float *descriptors, int *_cudaIndex,  int de
             //TODO - port opencv::norm to CUDA
             double d = 0; 
 
-            if (i == 0 || d < minDist) {
+            if (numChild == 0 || d < minDist) {
                 minDist = d;
                 idClosest = childId;
             }
@@ -1581,6 +1691,7 @@ VocTree::storeInvIdx(string &fileName) {
     mp.close();
 
 }
+
 
 
 void

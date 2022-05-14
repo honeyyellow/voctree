@@ -156,6 +156,10 @@ private:
     Mat _centers;
     Mat _weights;
 
+    float *_cudaCenters;
+
+
+
     // for virtual inverted indexes (IIF: Inverted Index File)
     struct IIFEntry {
         int idFile;
