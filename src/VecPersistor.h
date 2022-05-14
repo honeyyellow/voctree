@@ -49,8 +49,10 @@ public:
      *
      * Rewritten VecPersistor::restore for int vector in VocTree for restoring
      * vocabulary tree in unified memory at database start.
+     * Pointer to pointer to memory location is used because
+     * cudaMallocManaged is used inside this function.
      */
-    void restoreIntUnifiedMem(string filePath, int *a);
+    void restoreIntUnifiedMem(string filePath, int **a, int *elemCount);
 
 
 private:
@@ -113,7 +115,7 @@ VecPersistor::restore(string filePath, vector<T> &vec) {
 
 
 void
-VecPersistor::restoreIntUnifiedMem(string filePath, int *a) {
+VecPersistor::restoreIntUnifiedMem(string filePath, int **a, int *elemCount) {
 
     ifstream file(filePath.c_str(), ios::in | ios::binary);
 
@@ -125,11 +127,13 @@ VecPersistor::restoreIntUnifiedMem(string filePath, int *a) {
 
     size_t byteSize = hdr.elemCount * sizeof(*a);
 
+    *elemCount = hdr.elemCount;
+
     // Allocate memory for data
-    cudaMallocManaged(&a, byteSize);
+    cudaMallocManaged(a, byteSize);
 
     // Read data
-    file.read((char *) a, byteSize);
+    file.read((char *) *a, byteSize);
 
     file.close();
 }
