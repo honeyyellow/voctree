@@ -45,6 +45,13 @@ public:
     void
     restore(string filePath, vector<T> &vec);
 
+    /**
+     *
+     * Rewritten VecPersistor::restore for int vector in VocTree for restoring
+     * vocabulary tree in unified memory at database start.
+     */
+    void restoreIntUnifiedMem(string filePath, int *a);
+
 
 private:
     struct Header {
@@ -102,6 +109,29 @@ VecPersistor::restore(string filePath, vector<T> &vec) {
 
     file.close();
 
+}
+
+
+void
+VecPersistor::restoreIntUnifiedMem(string filePath, int *a) {
+
+    ifstream file(filePath.c_str(), ios::in | ios::binary);
+
+    Header hdr;
+    char *pHdr = reinterpret_cast<char *>(&hdr);
+
+    size_t hdr_size = sizeof(Header);
+    file.read(pHdr, hdr_size);
+
+    size_t byteSize = hdr.elemCount * sizeof(*a);
+
+    // Allocate memory for data
+    cudaMallocManaged(&a, byteSize);
+
+    // Read data
+    file.read((char *) a, byteSize);
+
+    file.close();
 }
 
 
