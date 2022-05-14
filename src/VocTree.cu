@@ -25,6 +25,9 @@ using namespace cv;
 using namespace std;
 
 
+static const int DESCRIPTOR_SIZE = 128;
+
+
 bool VocTree::isLeaf(int idNode) {
     int idxNode = _index[idNode];
     return (_indexLeaves.at(idxNode) != -1);
@@ -805,6 +808,10 @@ VocTree::loadNodes(string &filePrefix) {
     vp.restore(fileIdx, _index);
     vp.restore(fileLeaves, _indexLeaves);
 
+    //Added for mallocing _index and _indexLeaves to unified memory
+    vp.restoreIntUnifiedMem(fileIdx, _cudaIndex);
+    vp.restoreIntUnifiedMem(fileLeaves, _cudaIndexLeaves);
+
     MatPersistor mpc(fileCenters);
     mpc.openRead();
     mpc.read(_centers);
@@ -859,6 +866,33 @@ VocTree::~VocTree() {
     cout << "voctree delete" << endl;
 }
 
+list<int>
+VocTree::cudaFindPath(float *qDesc) {
+
+    list<int> path;
+    int idNode = 0;
+    unsigned int numCh = _k;
+
+    path.push_back(idNode);
+
+    while(!isLeaf(idNode)) {
+
+        //Search the closest sub-cluster
+        //int idClosest = 0;
+        //double minDist = numeric_limits<int>::max();
+
+        for (size_t i = 0; i < numCh; i++) {
+
+            int childId = idChild(idNode, i);
+            int idxChild = _index[childId];
+
+
+        }
+    }
+
+    return path;
+}
+
 
 list<int>
 VocTree::findPath(Mat &descriptor) {
@@ -873,7 +907,7 @@ VocTree::findPath(Mat &descriptor) {
 
     // cout << "\t\t\tThe size of numCh : " << numCh << endl;
 
-    cout << "_useNorm variable : " << _useNorm << endl;
+    //cout << "_useNorm variable : " << _useNorm << endl;
 
     while (!isLeaf(idNode)) {
 
@@ -945,11 +979,30 @@ VocTree::findLeaf(Mat &descriptor) {
 
 }
 
-__global__ void norm_dummy() {
+__global__ void traverseDescriptors(float *descriptors, int descRows) {
 
-    
+    /*
+    if (blockIdx.x == descRows && threadIdx.x == 0) {
+        printf("BlockIdx : %d\n", blockIdx.x);
+    }
+    */
+    // Works
+    /*
+    if (blockIdx.x == 1) {
+        printf("DESC ON GPU\n");
+        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
+            printf("%f ", descriptors[blockIdx.x * DESCRIPTOR_SIZE + i]);
+        }
+        printf("\n");
+    }
+    */
+    // findPath
+    float qDescr = descriptors[blockIdx.x * DESCRIPTOR_SIZE + threadIdx.x];
+
+
 
 }
+
 
 void
 VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, int limit) {
@@ -961,16 +1014,51 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, int limit) {
         
         // TODO - Find the size of the descriptors
         size_t descriptorsSize = descriptors.rows * 128 * 4; // Each row is a bin of 128 CV_32F
+        int descRows = descriptors.rows;
         float *descPtr = descriptors.ptr<float>(0);
         float *cudaDescriptors;
         cudaMallocManaged(&cudaDescriptors, descriptorsSize);
-        cudaMemcpy(&cudaDescriptors, descPtr, descriptorsSize, cudaMemcpyHostToDevice);
+        cudaMemcpy(cudaDescriptors, descPtr, descriptorsSize, cudaMemcpyHostToDevice);
+
+        /*
+        cout << "DESC ON HOST WITH POINTER" << endl;
+        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
+            cout << descPtr[1 * DESCRIPTOR_SIZE + i] << " ";
+        }
+        cout << endl << endl;
+
+        cout << "DESC ON HOST ORDINARY" << endl;
+        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
+            cout << descriptors.at<float>(1, i) << " ";
+        }
+        cout << endl << endl;
+
+        printf("DESC ON GPU\n");
+        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
+            printf("%f ", cudaDescriptors[1 * DESCRIPTOR_SIZE + i]);
+        }
+        printf("\n");
+        */
+
+
+        /*
+        cout << "DESC ON GPU" << endl;
+        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
+            cout << descPtr[1 * DESCRIPTOR_SIZE + i] << " ";
+        }
+        cout << endl;
+        */
+        
+
+        //Call a kernel that traverses the descriptors
+        traverseDescriptors<<<descRows, DESCRIPTOR_SIZE>>>(cudaDescriptors, descRows-1);
+
     
         vector<float> q(_usedNodes, 0);
         double sum = 0;
     
         // TODO - port to CUDA
-        for (int i = 0; i < descriptors.rows; i++) {
+        for (int i = 0; i < descRows; i++) {
     
             Mat qDescr = descriptors.row(i);
     
@@ -1088,6 +1176,8 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, int limit) {
             //cout << "shrinking" << shrink << endl;
             result.resize(result.size() - shrink);
         }
+
+        cudaFree(cudaDescriptors);
     
     
 }

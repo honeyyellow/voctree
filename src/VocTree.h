@@ -13,6 +13,8 @@
 #include <cv.h>
 #include <vector>
 #include <list>
+#include <iostream>
+//#include <fstream>
 
 #include "Matching.h"
 #include "Catalog.h"
@@ -137,6 +139,17 @@ private:
     // the stores the id of leaf node if that position corresponds to a leaf node.
     vector<int> _indexLeaves;
 
+    // nodes index
+    // since the vocabulary tree is not a <K,H> complete tree, only the used nodes indices are stored
+    // in this _index vector. _index vector length will be the number of used nodes.
+    int *_cudaIndex;
+
+    // leafs indices
+    // _indexLeaves vector has the same length than _index.
+    // It stores in each position a (-1) value if that position corresponds to an internal node and
+    // the stores the id of leaf node if that position corresponds to a leaf node.
+    int *_cudaIndexLeaves;
+
     // nodes information
     // _centers: Mat in R^(_usedNodes x D), stores the nodes centers (or visual words)
     // _weights: Mat in R^_usedNodes, stores the nodes weights
@@ -202,6 +215,11 @@ private:
      * @return the path from the root to the leaf found, stored as a list of nodes indexes
      */
     list<int> findPath(Mat &queryDescr);
+
+    /**
+    * Same as function above ported to GPU
+    */
+    list<int> cudaFindPath(float *queryDescr);
 
 
     /**
@@ -395,6 +413,7 @@ private:
      * @return the total accumulated number of descriptors indexed from 0 to startImage
      */
     int getStartingFeatureRow(Catalog<DBElem> &catalog, int startImage);
+
 
 };
 
