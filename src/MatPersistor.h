@@ -9,6 +9,8 @@
 #ifndef MATPERSISTOR_H
 #define MATPERSISTOR_H
 
+#include <iostream>
+
 #include <stdlib.h>
 #include <cv.hpp>
 
@@ -106,6 +108,11 @@ public:
      * @param row
  */
     int read(Mat &mat, int rows);
+
+    /**
+     * Function for reading matrix into unified memory.
+     */
+    void readUnifiedMem(float **mat, int *rows, int *cols);
 
     /**
      * sets the current row (where data is going to be read or written)

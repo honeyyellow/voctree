@@ -203,6 +203,8 @@ MatPersistor::read(Mat &mat) {
 
     read(mat, _header.rows);
 
+    //cout << "rows, cols = " << _header.rows << ", " << _header.cols <<  endl;
+
 }
 
 
@@ -220,6 +222,8 @@ MatPersistor::read(Mat &mat, int maxRows) {
 
         mat.create(toRead, _header.cols, _header.type);
 
+        //cout << "Got here inside the if in MatPersistor::read" << endl;
+
     }
 
     long bytes = toRead *
@@ -231,6 +235,25 @@ MatPersistor::read(Mat &mat, int maxRows) {
 
     _currentRow += toRead;
     return toRead;
+
+}
+
+void
+MatPersistor::readUnifiedMem(float **mat, int *rows, int *cols) {
+
+    assert(isOpen() && _mode == READ);
+
+    size_t byteSize = _header.rows * _header.cols * sizeof(float);
+
+    *rows = _header.rows;
+    *cols = _header.cols;
+
+    cudaMallocManaged(mat, byteSize);
+
+    fseek(_pFile, sizeof(Header), SEEK_SET);
+    size_t bytesRead = fread((char *) *mat, 1, byteSize, _pFile);
+
+    assert(byteSize == bytesRead);
 
 }
 
