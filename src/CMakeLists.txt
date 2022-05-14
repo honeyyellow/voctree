@@ -37,7 +37,7 @@ set(SOURCES
 
 add_executable(${NAME} ${SOURCES})
 set_target_properties(${NAME} PROPERTIES CUDA_ARCHITECTURES "75")
-target_link_libraries(${NAME} PUBLIC PopSift::popsift ${OpenCV_LIBS})
+target_link_libraries(${NAME} PUBLIC PopSift::popsift ${OpenCV_LIBS} nvToolsExt)
 
 # target_link_libraries(${NAME} ${OpenCV_LIBS})
 
