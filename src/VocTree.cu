@@ -814,7 +814,7 @@ VocTree::loadNodes(string &filePrefix) {
 
     MatPersistor mpc(fileCenters);
     mpc.openRead();
-    mpc.read(_centers);
+    mpc.read(_centers); // read centers into unified memory
     mpc.close();
 
 
@@ -979,7 +979,7 @@ VocTree::findLeaf(Mat &descriptor) {
 
 }
 
-__global__ void traverseDescriptors(float *descriptors, int descRows) {
+__global__ void traverseDescriptors(float *descriptors, int *_cudaIndex,  int descRows, int k) {
 
     /*
     if (blockIdx.x == descRows && threadIdx.x == 0) {
@@ -996,10 +996,52 @@ __global__ void traverseDescriptors(float *descriptors, int descRows) {
         printf("\n");
     }
     */
-    // findPath
+
+    /* findPath implementation start */
+
+    int idNode, idxNode, pathIter;
+    int path[6]; // Is this ok?
+
+    idNode = 0;
+    pathIter = 0;
+    path[pathIter++] = idNode;
+    
+
+    unsigned int totalChildren = k;
+
     float qDescr = descriptors[blockIdx.x * DESCRIPTOR_SIZE + threadIdx.x];
 
+    // VocTree::isLeaf implementation
+    while ((idxNode = _cudaIndex[idNode]) != -1) {
 
+        int idClosest = 0;
+        double minDist = ~0;
+
+        for (size_t numChild = 0; numChild < totalChildren; numChild++) {
+
+            //VocTree::idChild implementation
+            int childId = (totalChildren * idNode) + 1 + numChild;
+
+            int idxChild = _cudaIndex[childId];
+
+            //TODO - port opencv::norm to CUDA
+            double d = 0; 
+
+            if (i == 0 || d < minDist) {
+                minDist = d;
+                idClosest = childId;
+            }
+
+        }
+
+        idNode = idClosest;
+        path[pathIter++] = idNode; 
+
+    }
+
+    /* findPath implementation end */
+
+    // Iterate up to pathIter in path
 
 }
 
@@ -1051,9 +1093,8 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, int limit) {
         
 
         //Call a kernel that traverses the descriptors
-        traverseDescriptors<<<descRows, DESCRIPTOR_SIZE>>>(cudaDescriptors, descRows-1);
+        traverseDescriptors<<<descRows, DESCRIPTOR_SIZE>>>(cudaDescriptors, _cudaIndex, descRows-1, _k);
 
-    
         vector<float> q(_usedNodes, 0);
         double sum = 0;
     
@@ -1063,6 +1104,8 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, int limit) {
             Mat qDescr = descriptors.row(i);
     
             list<int> path = findPath(qDescr);
+
+
     
             //cout << "\t\t\tpath.size() : " << path.size() << endl;
     
