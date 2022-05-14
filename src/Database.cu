@@ -231,7 +231,7 @@ Database::processPicture(FileHelper::Entry &ent, bool forVocabulary) {
 
     }
 
-    writeKeypointsToFile(fileName, keypoints); // Call to inspect output
+    //writeKeypointsToFile(fileName, keypoints); // Call to inspect output
 
     return;
 
