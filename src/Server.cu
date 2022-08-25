@@ -148,27 +148,39 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
     int limit = 16; //result.size() > 10 ? 10 : result.size();
 
     vector<Matching> result;
-    db->query(fileQuery, result, limit);
 
-    vector<Database::ExportInfo> exports = db->exportResults(result);
-    assert(result.size() == exports.size());
+    float *cudaResultScore;
+    int *cudaResultFileId;
+
+    db->query(fileQuery, result, &cudaResultScore, &cudaResultFileId, &limit);
+
+    cout << "got here....1" << endl;
+
+    //vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
+    vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResultFileId, limit);
+    //assert(result.size() == exports.size());
+
+    cout << "got here....2" << endl;
 
     cout << "query done." << endl;
-    cout << "result size:" << result.size() << endl;
+    //cout << "result size:" << result.size() << endl;
+    cout << "result(limit) size:" << limit << endl;
 
-    for (unsigned int i = 0; i < result.size(); i++) {
+    for (unsigned int i = 0; i < limit; i++) {
 
-        Matching m = result.at(i);
+        //Matching m = result.at(i); //
         Database::ExportInfo info = exports.at(i);
 
         //cout << "matching:" << i << ", " << m.id << ", " << m.score << endl;
 
-        float score = m.score;
+        //float score = m.score; //Used in original
         //DBElem info = db->getFileInfo( m.id );
         //cout << score << " " << info.name << endl;
 
         stringstream ss;
-        ss << score << "," << m.id << ", " << info.fileName << endl;
+        //ss << score << "," << m.id << ", " << info.fileName << endl; // Used in original
+        ss << cudaResultScore[i] << "," << cudaResultFileId[i] << ", " << info.fileName << endl;
+
 
         int n = write(sockfd, ss.str().c_str(), ss.str().size());
         if (n < 0) {
@@ -176,8 +188,10 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
             exit(1);
         }
 
-
     }
+
+    cudaFree(cudaResultScore);
+    cudaFree(cudaResultFileId);
 
 }
 
