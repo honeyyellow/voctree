@@ -134,7 +134,9 @@ public:
      */
     void query(string &fileName,
                vector<Matching> &result,
-               int limit);
+               float **cudaResultScore,
+               int **cudaResultFileId,
+               int *limit);
 
     /**
      * Performs a query for a given file
@@ -148,7 +150,9 @@ public:
      */
     void query(string &fileName,
                vector<Matching> &result,
-               int limit,
+               float **cudaResultScore,
+               int **cudaResultFileId,
+               int *limit,
                Mat &outImage,
                vector<KeyPoint> &qKeypoints,
                Mat &qDescriptors);
@@ -170,6 +174,12 @@ public:
      * @return a vector with the exporting results
      */
     vector<ExportInfo> exportResults(vector<Matching> &result);
+
+    /**
+     * Same as function above but for cuda query results.
+     *
+     */
+    vector<Database::ExportInfo> exportCudaResults(int *cudaResultFileId, int limit);
 
     /**
      * It loads the specified image,

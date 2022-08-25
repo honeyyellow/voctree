@@ -824,6 +824,82 @@ void splitPathFile(string fileName, string &path, string &file) {
 }
 
 vector<Database::ExportInfo>
+Database::exportCudaResults(int *cudaResultFileId, int limit) {
+
+    vector<ExportInfo> ret;
+
+    FileManager fileMgr(_path);
+
+    for (unsigned int i = 0; i < limit; i++) {
+
+        int idImage = cudaResultFileId[i];
+        DBElem info = _catalog.get(idImage);
+
+        string resName = fileMgr.inputDir() + "/" + info.name;
+        ResourceInfo res = getResourceInfo(resName);
+
+        string path, file;
+        splitPathFile(res.fileName, path, file);
+        string outName = fileMgr.resultDir() + "/" + file;
+        if (isVideo(outName)) {
+            stringstream ss;
+            ss << "#" << res.frameNumber << ".jpg";
+            outName += ss.str();
+        }
+        ExportInfo ei;
+        ei.idElem = idImage;
+        ei.fileName = outName.substr(_path.size());
+        ret.push_back(ei);
+
+        string outKeypName = fileMgr.resultDir() + "/keyp_" + ei.fileName;
+
+        cout << "exporting result: " << outName << endl;
+
+        if (FileHelper::exists(outName)) {
+
+            // file was already exported.
+
+        } else {
+
+            if (res.type == TYPE_PICTURE) {
+
+                FileHelper::copy(resName, outName);
+
+            } else {
+
+                // this result is within a video
+                Mat img = readResource(resName);
+                if (!img.data) {
+                    cerr << resName << " can not be read" << endl;
+                } else {
+
+                    cout << "writing output" << outName << endl;
+                    if (!imwrite(outName, img)) {
+                        cerr << resName << " can not be exported" << endl;
+                    }
+
+                }
+
+                // TODO: to avoid overhead when exporting would be better to:
+                // - group results by video id.
+                // - for each different video, sort results by frame id
+                // - export frames in order
+
+            }
+
+        }
+
+        exportFeaturesImage(outName);
+
+    }
+
+
+    return ret;
+
+}
+
+
+vector<Database::ExportInfo>
 Database::exportResults(vector<Matching> &result) {
 
     vector<ExportInfo> ret;
@@ -1083,12 +1159,12 @@ Database::query(int idFile, vector<Matching> &result, int limit) {
 }
 
 void
-Database::query(string &fileName, vector<Matching> &result, int limit) {
+Database::query(string &fileName, vector<Matching> &result, float** cudaResultScore, int **cudaResultFileId, int *limit) {
 
     Mat img;
     vector<KeyPoint> qKeypoints;
     Mat qDescriptors;
-    query(fileName, result, limit, img, qKeypoints, qDescriptors);
+    query(fileName, result, cudaResultScore, cudaResultFileId, limit, img, qKeypoints, qDescriptors);
 
 }
 
@@ -1096,7 +1172,9 @@ Database::query(string &fileName, vector<Matching> &result, int limit) {
 void
 Database::query(string &fileName,
                 vector<Matching> &result,
-                int limit,
+                float **cudaResultScore,
+                int **cudaResultFileId,
+                int *limit,
                 Mat &outImg,
                 vector<KeyPoint> &qKeypoints,
                 Mat &qDescriptors) {
@@ -1110,20 +1188,17 @@ Database::query(string &fileName,
         return;
     }
 
-
     cout << "extracting features..." << endl;
     if (!extractFeatures(img, qKeypoints, qDescriptors)) {
         cerr << fileName << " can not be processed" << endl;
         return;
     }
 
-
     if (qDescriptors.rows == 0) {
         cerr << "error processing (no descriptors) " << endl;
         return;
     }
 
-    // not used
     if (_usePCA) {
         cout << "Projecting PCA..." << endl;
         _pca->project(qDescriptors, qDescriptors);
@@ -1137,12 +1212,36 @@ Database::query(string &fileName,
 
 
     cout << "db:running query..." << endl;
-    //_vt->query(qDescriptors, result, limit);
-    _vt->cudaQuery(qDescriptors, result, limit);
+    //_vt->query(qDescriptors, result, *limit); // In original query
+    cout << endl << "CUDA QUERY STARTING HERE" << endl << endl;
+    _vt->cudaQuery(qDescriptors, result, cudaResultScore, cudaResultFileId, limit);
 
+    /*
+    if (*limit != result.size()) {
+        cout << "WARNING: limit and result not the same size" << endl;
+    }
 
+    ofstream resultFile;
+    resultFile.open("results.txt");
+
+    resultFile << "    CPU -------|------- GPU" << endl;
+    resultFile << "file, score ---|--- file, score" << endl;
+
+    //TODO - write results from cudaquery and results to file
+    for (int i = 0; i < *limit; i++) {
+
+        Matching &match = result.at(i);
+        resultFile << match.id << ", " << match.score << " == " << (*cudaResultFileId)[i] << ", " << (*cudaResultScore)[i] << endl;
+        
+    }
+    */
+
+    resultFile.close();
+
+    
     if (_exports) {
 
+        // TODO - rewrite exportResults to use cuda results
         cout << "exporting results..." << endl;
         exportResults(result);
 
@@ -1150,7 +1249,7 @@ Database::query(string &fileName,
         exportFeaturesImage(fileName, img, qKeypoints);
 
     }
-
+    
 
 }
 
