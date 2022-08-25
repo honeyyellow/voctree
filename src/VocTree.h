@@ -24,6 +24,9 @@
 using namespace cv;
 using namespace std;
 
+#define DESCRIPTOR_SIZE 128
+#define THREADS_PER_BLOCK 32
+#define FULL_MASK 0xffffffff
 
 class VocTree {
 
@@ -77,7 +80,9 @@ public:
      */
     void cudaQuery(Mat &queryDescrs,
                vector<Matching> &result,
-               int limit);
+               float **cudaResultScore,
+               int **cudaResultFileId,
+               int *limit);
 
     /**
      * updates the vocabulary tree with new images
@@ -156,7 +161,12 @@ private:
     Mat _centers;
     Mat _weights;
 
+    int _centersCols;
     float *_cudaCenters;
+
+    float *_cudaWeights;
+
+
 
 
 
@@ -206,6 +216,9 @@ private:
     };
     vector<vector<DComponent> > _dVectors;
 
+    int *_cudaDVectorsIdFiles;
+    float *_cudaDVectorsValues;
+
     /**
      * Traverses the tree moving from the root to the leaves looking for the closest visual word in each step
      * @param descriptor input descriptor
@@ -224,6 +237,11 @@ private:
     * Same as function above ported to GPU
     */
     list<int> cudaFindPath(float *queryDescr);
+
+    /**
+    * Same as function above running on CPU printing norm values to file
+    */
+    list<int> debugFindPath(Mat &descriptor, ofstream &file, int debug); 
 
 
     /**
@@ -268,6 +286,12 @@ private:
     void loadWeights(string &fileName);
 
     /**
+     * Load nodes weights data to unified memory to disk
+     * @param fileName input file name
+     */
+    void loadWeightsUnifiedMem(string &fileName, int *rows, int *cols);
+
+    /**
      * Stores inverted indices data to disk
      * @param fileName output file name
      */
@@ -290,6 +314,13 @@ private:
      * @param fileName output file name
      */
     void loadVectors(string &fileName);
+
+    /**
+     * Loads d-vectors data from disk into unified
+     * memory for GPU computation
+     * @param fileName output file name
+     */
+    void loadVectorsIntoUnifiedMem(string &filename);
 
 
     /**
@@ -417,6 +448,12 @@ private:
      * @return the total accumulated number of descriptors indexed from 0 to startImage
      */
     int getStartingFeatureRow(Catalog<DBElem> &catalog, int startImage);
+
+    /**
+     *
+     *
+     */
+    void quickSortCudaResults(float **cudaResultScore, int **cudaResultFileId, int start, int end);
 
 
 };
