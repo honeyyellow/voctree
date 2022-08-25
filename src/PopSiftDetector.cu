@@ -34,7 +34,7 @@ void PopSiftDetector::detect(InputArrayOfArrays images,
 
 void PopSiftDetector::compute(InputArray _image,
                 CV_OUT CV_IN_OUT std::vector<KeyPoint> &keypoints,
-                OutputArray _descriptors)
+                OutputArray _descriptors) //, float *descriptors )
 {
 
     Mat image = _image.getMat();
@@ -44,9 +44,24 @@ void PopSiftDetector::compute(InputArray _image,
     std::unique_ptr<SiftJob> job(_popSift->enqueue(image.cols, image.rows, img_ptr));
     std::unique_ptr<popsift::Features> popFeatures(job->get());
 
+    /* Get descriptors on the device */
+    /*
+    
+    std::unique_ptr<SiftJob> job(_popSift->enqueue(image.cols, image.rows, img_ptr));
+    std::unique_ptr<popsift::FeaturesDev> popFeatures(job->getDev());
+    Må fortsatt bruke cudaMemCpy siden pointeren frees på PopSift sin side
+    Må forandre PopSift koden
+
+    */
+
+
+    //Use popFeatures(job->getDev()) to get the features output stored on the device
+
     //cout << "PopSIFT features count : " << popFeatures->getFeatureCount() << ", PopSIFT descriptor count :" << popFeatures->getDescriptorCount() << endl;
 
     keypoints.reserve(popFeatures->getDescriptorCount());
+
+    // descriptors = PopSift->DescriptorsOnDevice();
 
     // magic input is copying SIFT input as implemented in openCV
     _descriptors.create((int)popFeatures->getDescriptorCount(), 128, CV_32F);
@@ -155,6 +170,7 @@ void PopSiftDetector::resetConfiguration()
         popsift::cuda::device_prop_t deviceInfo;
         deviceInfo.set(cudaDevice);
 
+        // Change from ExtractingMode to MatchingMode, 
          _popSift.reset(new PopSift(config, popsift::Config::ExtractingMode, PopSift::ByteImages, cudaDevice)); // fjerde parameter som er devicen
 
     } else {
