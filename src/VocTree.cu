@@ -1330,7 +1330,7 @@ __global__ void normalizeQVector(float *q, float sum, int N) {
 
 }
 
-__global__ void calculateMatchScore(match_t *cudaResult, float *compsValue, int *compsFileId, float qi, int N) {
+__global__ void calculateMatchScore(Matching::match_t *cudaResult, float *compsValue, int *compsFileId, float qi, int N) {
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1353,7 +1353,7 @@ __global__ void calculateMatchScore(match_t *cudaResult, float *compsValue, int 
 
 
 void
-VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, match_t **cudaResult, int *limit) {
+VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t **cudaResult, int *limit) {
         //cout << " --- New call to VocTree::query() --- " << endl << endl;
 
         cout << "descriptors rows : " << descriptors.rows << endl;
@@ -1424,7 +1424,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, match_t **cudaRes
         }
         */
 
-        cudaMallocManaged(cudaResult, _dbSize * sizeof(match_t));
+        cudaMallocManaged(cudaResult, _dbSize * sizeof(Matching::match_t));
 
         // Initialize in kernel, use thrust for initializing
         for (int i = 0; i < _dbSize; i++) {
@@ -2068,8 +2068,8 @@ VocTree::loadWeightsUnifiedMem(string &fileName, int *rows, int *cols) {
 
 }
 
-static void exchange(match_t **cudaResult, int i, int j) {
-    match_t temp = (*cudaResult)[i];
+static void exchange(Matching::match_t **cudaResult, int i, int j) {
+    Matching::match_t temp = (*cudaResult)[i];
     (*cudaResult)[i] = (*cudaResult)[j];
     (*cudaResult)[j] = temp;
 
@@ -2077,10 +2077,10 @@ static void exchange(match_t **cudaResult, int i, int j) {
 
 
 
-static int partition(match_t **cudaResult, int start, int end) {
+static int partition(Matching::match_t **cudaResult, int start, int end) {
     int i = start;
     int j = end + 1;
-    match_t m = (*cudaResult)[start];
+    Matching::match_t m = (*cudaResult)[start];
 
     while (1) {
 
@@ -2109,7 +2109,7 @@ static int partition(match_t **cudaResult, int start, int end) {
 }
 
 void
-VocTree::quickSortCudaResults(match_t **cudaResult, int start, int end) {
+VocTree::quickSortCudaResults(Matching::match_t **cudaResult, int start, int end) {
     if (end <= start) return;
     int j = partition(cudaResult, start, end);
     quickSortCudaResults(cudaResult, start, j - 1);

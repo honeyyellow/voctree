@@ -824,7 +824,7 @@ void splitPathFile(string fileName, string &path, string &file) {
 }
 
 vector<Database::ExportInfo>
-Database::exportCudaResults(match_t *cudaResult, int limit) {
+Database::exportCudaResults(Matching::match_t *cudaResult, int limit) {
 
     vector<ExportInfo> ret;
 
@@ -1159,7 +1159,7 @@ Database::query(int idFile, vector<Matching> &result, int limit) {
 }
 
 void
-Database::query(string &fileName, vector<Matching> &result, match_t **cudaResult, int *limit) {
+Database::query(string &fileName, vector<Matching> &result, Matching::match_t **cudaResult, int *limit) {
 
     Mat img;
     vector<KeyPoint> qKeypoints;
@@ -1172,7 +1172,7 @@ Database::query(string &fileName, vector<Matching> &result, match_t **cudaResult
 void
 Database::query(string &fileName,
                 vector<Matching> &result,
-                match_t **cudaResult,
+                Matching::match_t **cudaResult,
                 int *limit,
                 Mat &outImg,
                 vector<KeyPoint> &qKeypoints,

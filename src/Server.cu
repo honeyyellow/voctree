@@ -149,7 +149,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     vector<Matching> result;
 
-    match_t *cudaResult;
+    Matching::match_t *cudaResult;
 
     db->query(fileQuery, result, &cudaResult, &limit);
 

@@ -13,15 +13,6 @@
 
 using namespace std;
 
-typedef struct match {
-    float score;
-    int fileId;
-} match_t;
-
-bool matchCompare(match_t *m1, match_t *m2) {
-    return m1->score <= m2->score;
-}
-
 
 class Matching {
     /**
@@ -29,6 +20,15 @@ class Matching {
      */
 
 public:
+
+    typedef struct match {
+        float score;
+        int fileId;
+    } match_t;
+
+    bool matchCompare(match_t *m1, match_t *m2) {
+        return m1->score <= m2->score;
+    }
 
 
 

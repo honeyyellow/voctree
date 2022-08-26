@@ -80,7 +80,7 @@ public:
      */
     void cudaQuery(Mat &queryDescrs,
                vector<Matching> &result,
-               match_t **cudaResult,
+               Matching::match_t **cudaResult,
                int *limit);
 
     /**
@@ -452,7 +452,7 @@ private:
      *
      *
      */
-    void quickSortCudaResults(match_t **cudaResult, int start, int end);
+    void quickSortCudaResults(Matching::match_t **cudaResult, int start, int end);
 
 
 };
