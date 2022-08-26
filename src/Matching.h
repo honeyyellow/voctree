@@ -13,6 +13,15 @@
 
 using namespace std;
 
+typedef struct match {
+    float score;
+    int fileId;
+} match_t;
+
+bool matchCompare(match_t *m1, match_t *m2) {
+    return m1->score <= m2->score;
+}
+
 
 class Matching {
     /**
@@ -20,6 +29,8 @@ class Matching {
      */
 
 public:
+
+
 
     // The id of the file element
     // (is a number of the inverted index provided to the tree)
