@@ -100,6 +100,14 @@ public:
      */
     void showInfo();
 
+    // used to store the d vectors
+    // declared public to be accessible
+    // by thrust library
+    struct DComponent {
+        int idFile;
+        float value;
+    };
+
 private:
 
     // norm used to compare descriptors
@@ -207,16 +215,21 @@ private:
      */
     int idChild(int idNode, int numChild);
 
-
-    // used to store the d vectors
-    struct DComponent {
-        int idFile;
-        float value;
-    };
     vector<vector<DComponent> > _dVectors;
 
-    int *_cudaDVectorsIdFiles;
-    float *_cudaDVectorsValues;
+    // Used to assist device memory management
+    // of _dVectors array above at runtime
+    int *_cudaDVectorsLengths;
+
+    int *_selectedDVectorLengths;
+
+    /**
+     * 
+     * Test equality of _dVectors lengths stored in cuda array
+     * and acutal length in dVectors
+     */
+
+    void testDVectorLengths();
 
     /**
      * Traverses the tree moving from the root to the leaves looking for the closest visual word in each step
@@ -447,12 +460,6 @@ private:
      * @return the total accumulated number of descriptors indexed from 0 to startImage
      */
     int getStartingFeatureRow(Catalog<DBElem> &catalog, int startImage);
-
-    /**
-     *
-     *
-     */
-    void quickSortCudaResults(Matching::match_t **cudaResult, int start, int end);
 
 
 };
