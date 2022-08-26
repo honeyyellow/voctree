@@ -149,18 +149,13 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     vector<Matching> result;
 
-    float *cudaResultScore;
-    int *cudaResultFileId;
+    match_t *cudaResult;
 
-    db->query(fileQuery, result, &cudaResultScore, &cudaResultFileId, &limit);
-
-    cout << "got here....1" << endl;
+    db->query(fileQuery, result, &cudaResult, &limit);
 
     //vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
-    vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResultFileId, limit);
+    vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResult, limit);
     //assert(result.size() == exports.size());
-
-    cout << "got here....2" << endl;
 
     cout << "query done." << endl;
     //cout << "result size:" << result.size() << endl;
@@ -179,7 +174,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
         stringstream ss;
         //ss << score << "," << m.id << ", " << info.fileName << endl; // Used in original
-        ss << cudaResultScore[i] << "," << cudaResultFileId[i] << ", " << info.fileName << endl;
+        ss << cudaResult[i].score << "," << cudaResult[i].fileId << ", " << info.fileName << endl;
 
 
         int n = write(sockfd, ss.str().c_str(), ss.str().size());
@@ -190,8 +185,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     }
 
-    cudaFree(cudaResultScore);
-    cudaFree(cudaResultFileId);
+    cudaFree(cudaResult);
 
 }
 
