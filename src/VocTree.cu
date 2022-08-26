@@ -1246,13 +1246,12 @@ __global__ void traverseDescriptors(float *descriptors, float *centers, int *ind
     while (!(indexLeaves[index[idNode]] != -1)) {
 
         int idClosest = 0;
-        float minDist = 0xffffffff;
+        float minDist = 0xffffffff; // TODO - check this number => Use FLT_MAX macro
 
         for (int i = 0; i < numCh; i++) {
 
             int childId = (k * idNode) + 1 + i;
             int idxChild = index[childId];
-
 
             float d = 0.0f;
 
@@ -1290,6 +1289,7 @@ __global__ void traverseDescriptors(float *descriptors, float *centers, int *ind
         if (threadIdx.x == pathIter++) {
             threadIdNode = idNode;
         }
+        __syncthreads();
 
 
     }
@@ -1330,7 +1330,7 @@ __global__ void normalizeQVector(float *q, float sum, int N) {
 
 }
 
-__global__ void calculateMatchScore(float *cudaResultScore, int *cudaResultFileId, float *compsValue, int *compsFileId, float qi, int N) {
+__global__ void calculateMatchScore(match_t *cudaResult, float *compsValue, int *compsFileId, float qi, int N) {
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1340,8 +1340,11 @@ __global__ void calculateMatchScore(float *cudaResultScore, int *cudaResultFileI
         float di = compsValue[tid];
         float diff = abs(qi - di);
 
-        cudaResultFileId[idFile] = idFile;
-        cudaResultScore[idFile] += (diff - di - qi);
+        cudaResult[idFile].fileId = idFile;
+        cudaResult[idFile].score += (diff - di - qi);
+        
+        //cudaResultFileId[idFile] = idFile;
+        //cudaResultScore[idFile] += (diff - di - qi);
 
     }
 }
@@ -1350,7 +1353,7 @@ __global__ void calculateMatchScore(float *cudaResultScore, int *cudaResultFileI
 
 
 void
-VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, float **cudaResultScore, int **cudaResultFileId, int *limit) {
+VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, match_t **cudaResult, int *limit) {
         //cout << " --- New call to VocTree::query() --- " << endl << endl;
 
         cout << "descriptors rows : " << descriptors.rows << endl;
@@ -1421,16 +1424,16 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, float **cudaResul
         }
         */
 
-        //result.resize(_dbSize);
+        cudaMallocManaged(cudaResult, _dbSize * sizeof(match_t));
 
-        cudaMallocManaged(cudaResultScore, _dbSize * sizeof(cudaResultScore));
-        cudaMallocManaged(cudaResultFileId, _dbSize * sizeof(cudaResultFileId));
-
+        // Initialize in kernel, use thrust for initializing
         for (int i = 0; i < _dbSize; i++) {
-            (*cudaResultScore)[i] = 2;
-            (*cudaResultFileId)[i] = -1;
+            (*cudaResult)[i].score = 2;
+            (*cudaResult)[i].fileId = -1;
         }
 
+        
+        cout << "got here..." << endl;
         for (unsigned int idxNode = 0; idxNode < _usedNodes; idxNode++) {
             
             float qi = q[idxNode];
@@ -1459,11 +1462,18 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, float **cudaResul
                 dim3 dVectorThreads(THREADS_PER_BLOCK);
 
                 //TODO - launch kernel that calculates the matches
-                calculateMatchScore<<<dVectorBlocks, dVectorThreads>>>(*cudaResultScore, *cudaResultFileId, cudaCompsValue, cudaCompsIdFile, qi, comps.size());
+                calculateMatchScore<<<dVectorBlocks, dVectorThreads>>>(*cudaResult, cudaCompsValue, cudaCompsIdFile, qi, comps.size());
                 cudaDeviceSynchronize();
+
+                cudaFree(cudaCompsValue);
+                cudaFree(cudaCompsIdFile);
 
             }
         }
+        //cudaDeviceSynchronize(); Use this here when loop above is improved to not free managed memory each iteration
+        cout << "got here again ..." << endl;
+
+
 
         /*
         for (int i = 0; i < *limit; i++) {
@@ -1472,20 +1482,21 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, float **cudaResul
         
         cout << endl;
         */
+        //sort(begin<match_t>(*cudaResult), end<match_t>(*cudaResult), matchCompare);
 
-        quickSortCudaResults(cudaResultScore, cudaResultFileId, 0, _dbSize - 1);
 
-        /*
+        quickSortCudaResults(cudaResult, 0, _dbSize - 1);
+
         for (int i = 0; i < *limit; i++) {
-            cout << "result : " << (*cudaResultScore)[i] << ", " << (*cudaResultFileId)[i] << endl;
+            cout << "result : " << (*cudaResult)[i].score << ", " << (*cudaResult)[i].fileId << endl;
         }
-        */
+        
         //TODO - shrink the results
         float zeroEps = 1e-03;
         for (unsigned int i = 0; i < *limit; i++) {
-            if ((*cudaResultScore)[i] < zeroEps) {
-                (*cudaResultScore)[i] = 0;
-            } else if ((*cudaResultFileId)[i] == -1) {
+            if ((*cudaResult)[i].score < zeroEps) {
+                (*cudaResult)[i].score = 0;
+            } else if ((*cudaResult)[i].fileId == -1) {
                 (*limit)--;
             }
         }
@@ -1792,6 +1803,7 @@ void VocTree::storeVectors(string &fileName) {
 void
 VocTree::loadVectorsIntoUnifiedMem(string &filename) {
 
+    
     /*
     FILE *pFile = fopen(filename.c_str(), "rb");
 
@@ -1811,6 +1823,9 @@ VocTree::loadVectorsIntoUnifiedMem(string &filename) {
     float *pFloat = (float *) pBuffer;
     long read;
     */
+
+
+    
 
 }
 
@@ -2053,32 +2068,29 @@ VocTree::loadWeightsUnifiedMem(string &fileName, int *rows, int *cols) {
 
 }
 
-static void exchange(float **cudaResultScore, int **cudaResultFileId, int i, int j) {
-    float tempScore = (*cudaResultScore)[i];
-    (*cudaResultScore)[i] = (*cudaResultScore)[j];
-    (*cudaResultScore)[j] = tempScore;
+static void exchange(match_t **cudaResult, int i, int j) {
+    match_t temp = (*cudaResult)[i];
+    (*cudaResult)[i] = (*cudaResult)[j];
+    (*cudaResult)[j] = temp;
 
-    int tempFile = (*cudaResultFileId)[i];
-    (*cudaResultFileId)[i] = (*cudaResultFileId)[j];
-    (*cudaResultFileId)[j] = tempFile;
 }
 
 
 
-static int partition(float **cudaResultScore, int **cudaResultFileId, int start, int end) {
+static int partition(match_t **cudaResult, int start, int end) {
     int i = start;
     int j = end + 1;
-    float val = (*cudaResultScore)[start];
+    match_t m = (*cudaResult)[start];
 
     while (1) {
 
-        while ((*cudaResultScore)[++i] < val) {
+        while ((*cudaResult)[++i].score < m.score) {
             if (i == end) {
                 break;
             }
         }
 
-        while ((*cudaResultScore)[--j] > val) {
+        while ((*cudaResult)[--j].score > m.score) {
             if (j == start) {
                 break;
             }
@@ -2088,20 +2100,20 @@ static int partition(float **cudaResultScore, int **cudaResultFileId, int start,
             break;
         }
 
-        exchange(cudaResultScore, cudaResultFileId, i, j);
+        exchange(cudaResult, i, j);
     }
 
-    exchange(cudaResultScore, cudaResultFileId, start, j);
+    exchange(cudaResult, start, j);
 
     return j;
 }
 
 void
-VocTree::quickSortCudaResults(float **cudaResultScore, int **cudaResultFileId, int start, int end) {
+VocTree::quickSortCudaResults(match_t **cudaResult, int start, int end) {
     if (end <= start) return;
-    int j = partition(cudaResultScore, cudaResultFileId, start, end);
-    quickSortCudaResults(cudaResultScore, cudaResultFileId, start, j - 1);
-    quickSortCudaResults(cudaResultScore, cudaResultFileId, j + 1, end);
+    int j = partition(cudaResult, start, end);
+    quickSortCudaResults(cudaResult, start, j - 1);
+    quickSortCudaResults(cudaResult, j + 1, end);
 }
 
 
