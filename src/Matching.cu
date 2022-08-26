@@ -10,3 +10,19 @@ Matching::Matching() {
 Matching::~Matching() {
 }
 
+/*
+template <class T, size_t N>
+T*
+Matching::begin(T (&array)[N]) {
+    return array;
+}
+
+template <class T, size_t N>
+T*
+Matching::end(T (&array)[N]) {
+    return array + N;
+}
+*/
+
+
+
