@@ -1391,12 +1391,8 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
         traverseDescriptors<<<numDescriptors, numThreads>>>(cudaDescriptors, _cudaCenters, _cudaIndex, _cudaIndexLeaves, _cudaWeights, q, sums, _centersCols, _k, _h);
         cudaDeviceSynchronize();
 
-        float sum = thrust::reduce(sums, sums + descRows);
+        float sum = thrust::reduce(thrust::device, sums, sums + descRows);
         cout << "The sum from GPU calc (using thrust): " << sum << endl; 
-
-
-        //TODO - create kernel that parallelizes normalization of q vector
-        //cout << "_usedNodes / 32 : "  << _usedNodes / 32 << ", remainder : " << _usedNodes % 32 << endl;
 
         int qNumBlocks = _usedNodes / THREADS_PER_BLOCK;
 
@@ -1407,20 +1403,9 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
         dim3 qBlocks(qNumBlocks);
         dim3 qThreads(THREADS_PER_BLOCK);
 
-        /*
-        for (int i = 0; i < 10; i++) {
-            cout << "GPU " << i << "th q before norm : " << q[i] << endl;
-        }
-        */
-
         normalizeQVector<<<qBlocks, qThreads>>>(q, 1 / sum, _usedNodes);
         cudaDeviceSynchronize();
 
-        /*
-        for (int i = 0; i < _usedNodes; i++) {
-            //cout << "GPU " << i << "th q after norm : " << q[i] << endl;
-        }
-        */
 
         cudaMallocManaged(cudaResult, _dbSize * sizeof(Matching::match_t));
 
