@@ -8,9 +8,9 @@
 
 #include "VocTree.h"
 
-
 #include <set>
 #include <limits>
+#include <thrust/reduce.h>
 
 #include "MatPersistor.h"
 #include "VecPersistor.h"
@@ -1391,13 +1391,9 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
         traverseDescriptors<<<numDescriptors, numThreads>>>(cudaDescriptors, _cudaCenters, _cudaIndex, _cudaIndexLeaves, _cudaWeights, q, sums, _centersCols, _k, _h);
         cudaDeviceSynchronize();
 
-        //TODO - sum sums array with GPU reduction function
-        float sum = 0;
+        float sum = thrust::reduce(sums, sums + descRows);
+        cout << "The sum from GPU calc (using thrust): " << sum << endl; 
 
-        for (int i = 0; i < descRows; i++) {
-            sum += sums[i];
-        }
-        cout << "The sum from GPU calc : " << sum << endl; 
 
         //TODO - create kernel that parallelizes normalization of q vector
         //cout << "_usedNodes / 32 : "  << _usedNodes / 32 << ", remainder : " << _usedNodes % 32 << endl;
