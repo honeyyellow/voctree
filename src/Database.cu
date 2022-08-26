@@ -824,7 +824,7 @@ void splitPathFile(string fileName, string &path, string &file) {
 }
 
 vector<Database::ExportInfo>
-Database::exportCudaResults(int *cudaResultFileId, int limit) {
+Database::exportCudaResults(match_t *cudaResult, int limit) {
 
     vector<ExportInfo> ret;
 
@@ -832,7 +832,7 @@ Database::exportCudaResults(int *cudaResultFileId, int limit) {
 
     for (unsigned int i = 0; i < limit; i++) {
 
-        int idImage = cudaResultFileId[i];
+        int idImage = cudaResult[i].fileId;
         DBElem info = _catalog.get(idImage);
 
         string resName = fileMgr.inputDir() + "/" + info.name;
@@ -1159,12 +1159,12 @@ Database::query(int idFile, vector<Matching> &result, int limit) {
 }
 
 void
-Database::query(string &fileName, vector<Matching> &result, float** cudaResultScore, int **cudaResultFileId, int *limit) {
+Database::query(string &fileName, vector<Matching> &result, match_t **cudaResult, int *limit) {
 
     Mat img;
     vector<KeyPoint> qKeypoints;
     Mat qDescriptors;
-    query(fileName, result, cudaResultScore, cudaResultFileId, limit, img, qKeypoints, qDescriptors);
+    query(fileName, result, cudaResult, limit, img, qKeypoints, qDescriptors);
 
 }
 
@@ -1172,8 +1172,7 @@ Database::query(string &fileName, vector<Matching> &result, float** cudaResultSc
 void
 Database::query(string &fileName,
                 vector<Matching> &result,
-                float **cudaResultScore,
-                int **cudaResultFileId,
+                match_t **cudaResult,
                 int *limit,
                 Mat &outImg,
                 vector<KeyPoint> &qKeypoints,
@@ -1214,7 +1213,7 @@ Database::query(string &fileName,
     cout << "db:running query..." << endl;
     //_vt->query(qDescriptors, result, *limit); // In original query
     cout << endl << "CUDA QUERY STARTING HERE" << endl << endl;
-    _vt->cudaQuery(qDescriptors, result, cudaResultScore, cudaResultFileId, limit);
+    _vt->cudaQuery(qDescriptors, result, cudaResult, limit);
 
     /*
     if (*limit != result.size()) {
@@ -1234,16 +1233,15 @@ Database::query(string &fileName,
         resultFile << match.id << ", " << match.score << " == " << (*cudaResultFileId)[i] << ", " << (*cudaResultScore)[i] << endl;
         
     }
-    */
-
     resultFile.close();
-
+    */
     
     if (_exports) {
 
         // TODO - rewrite exportResults to use cuda results
         cout << "exporting results..." << endl;
-        exportResults(result);
+        exportCudaResults(*cudaResult, *limit);
+        //exportResults(result);
 
         cout << "exporting features image..." << endl;
         exportFeaturesImage(fileName, img, qKeypoints);
