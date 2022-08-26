@@ -1349,7 +1349,9 @@ __global__ void calculateMatchScore(Matching::match_t *cudaResult, float *compsV
     }
 }
 
-
+static bool compareMatch(const Matching::match_t m1, const Matching::match_t m2) {
+    return m1.score < m2.score;
+}
 
 
 void
@@ -1474,7 +1476,6 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
         cout << "got here again ..." << endl;
 
 
-
         /*
         for (int i = 0; i < *limit; i++) {
             cout << "result : " << (*cudaResultScore)[i] << ", " << (*cudaResultFileId)[i] << endl;
@@ -1482,10 +1483,10 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
         
         cout << endl;
         */
-        //sort(begin<match_t>(*cudaResult), end<match_t>(*cudaResult), matchCompare);
 
+        sort(*cudaResult, *cudaResult + _dbSize, &compareMatch);
 
-        quickSortCudaResults(cudaResult, 0, _dbSize - 1);
+        //quickSortCudaResults(cudaResult, 0, _dbSize - 1);
 
         for (int i = 0; i < *limit; i++) {
             cout << "result : " << (*cudaResult)[i].score << ", " << (*cudaResult)[i].fileId << endl;
