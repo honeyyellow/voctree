@@ -222,6 +222,7 @@ private:
     int *_cudaDVectorsLengths;
 
     int *_selectedDVectorLengths;
+    float *_selectedDVectorQValues;
 
     /**
      * 

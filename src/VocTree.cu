@@ -974,6 +974,8 @@ VocTree::VocTree(string &path) {
     loadVectors(fileVectors);
 
     cudaMallocManaged(&_selectedDVectorLengths, _usedNodes * sizeof(*_selectedDVectorLengths));
+    //cudaMallocManaged(&_sele)
+
 
     std::cout << "voctree loaded" << endl;
 
@@ -1356,10 +1358,13 @@ __global__ void traverseDVectorSizes(float *q, int *cudaDVectorsLengths, int *se
 
 }
 
-
 __global__ void calculateMatchScore(Matching::match_t *cudaResult, float *compsValue, int *compsFileId, float qi, int N) {
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid == 0) {
+        printf("Got here...from old kernel..\n");
+    }
 
     if (tid < N) {
 
@@ -1367,18 +1372,49 @@ __global__ void calculateMatchScore(Matching::match_t *cudaResult, float *compsV
         float di = compsValue[tid];
         float diff = abs(qi - di);
 
+        //printf("tid %d : di, qi %f, %f\n", tid, di, qi);
+
         cudaResult[idFile].fileId = idFile;
         cudaResult[idFile].score += (diff - di - qi);
-        
-        //cudaResultFileId[idFile] = idFile;
-        //cudaResultScore[idFile] += (diff - di - qi);
+
 
     }
 }
 
+
+__global__ void calculateMatchScoreNEW(Matching::match_t *cudaResult, VocTree::DComponent *cudaDVectors, float *qGreaterThanZero, int N) {
+
+    
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < N) {
+
+        int idFile = cudaDVectors[tid].idFile;
+        float di = cudaDVectors[tid].value;
+        float qi = qGreaterThanZero[tid];
+        float diff = abs(qi - di);
+
+        //printf("tid %d : di, qi %f, %f\n", tid, di, qi);
+
+        cudaResult[idFile].fileId = idFile;
+        atomicAdd(&(cudaResult[idFile].score), diff - di - qi);
+        //cudaResult[idFile].score += (diff - di - qi);
+
+    }
+    
+}
+
+
 bool compareMatch(const Matching::match_t m1, const Matching::match_t m2) {
     return m1.score < m2.score;
 }
+
+struct greater_than_zero {
+    __host__ __device__
+    bool operator()(const float &x) {
+        return x > 0;
+    }
+};
 
 void
 VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t **cudaResult, int *limit) {
@@ -1398,6 +1434,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
 
         testDescriptorEquality(descriptors, cudaDescriptors);
 
+        //TODO - allocate memory at voctree create
         float *q;
         size_t qSize = _usedNodes * sizeof(*q);
         cudaMallocManaged(&q, qSize);
@@ -1433,18 +1470,30 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
 
         cudaDeviceSynchronize();
 
+        /*
+        int qGreaterThanZeroCount = thrust::count_if(thrust::device, q, q + _usedNodes, greater_than_zero());
+
+        float *qGreaterThanZero;
+        cudaMallocManaged(&qGreaterThanZero, qGreaterThanZeroCount * sizeof(*qGreaterThanZero));
+
+        thrust::copy_if(thrust::device, q, q + _usedNodes, qGreaterThanZero, greater_than_zero());
+        */
+        
         // Launch new kernel here that finds out how much memory
         // must be allocated for calculating match scores
         traverseDVectorSizes<<<qBlocks, qThreads>>>(q,  _cudaDVectorsLengths, _selectedDVectorLengths, _usedNodes);
         cudaDeviceSynchronize();
 
-        size_t memorySize = thrust::reduce(thrust::device, _selectedDVectorLengths, _selectedDVectorLengths + _usedNodes);
+        int dVectorNumElements = thrust::reduce(thrust::device, _selectedDVectorLengths, _selectedDVectorLengths + _usedNodes);
 
         struct DComponent *cudaDVectors;
-        cudaMallocManaged(&cudaDVectors, memorySize * sizeof(*cudaDVectors));
+        cudaMallocManaged(&cudaDVectors, dVectorNumElements * sizeof(*cudaDVectors));
 
+        float *qGreaterThanZero;
+        cudaMallocManaged(&qGreaterThanZero, dVectorNumElements * sizeof(*qGreaterThanZero));
+
+        // Initialize managed memory space for dVectors
         int dVectorCursor = 0;
-        //TODO - initialize this array of DVectors
         for (unsigned int idxNode = 0; idxNode < _usedNodes; idxNode++) {
             if (q[idxNode] > 0) {
                 vector<DComponent> &comps = _dVectors.at(idxNode);
@@ -1453,12 +1502,29 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
 
                 thrust::copy(thrust::host, compsPtr, compsPtr + comps.size(), cudaDVectors + dVectorCursor);
 
+                thrust::fill(thrust::device, qGreaterThanZero + dVectorCursor, qGreaterThanZero + dVectorCursor + comps.size(), q[idxNode]);
+
+                /*
+                float *start = qGreaterThanZero + dVectorCursor;
+                float *end = qGreaterThanZero + dVectorCursor + comps.size();
+                cout << "comps.size() " << comps.size() << endl;
+
+                while (start < end) {
+
+                    cout << "\texpected " << *start << ", actual " << q[idxNode] << endl;
+
+                    if (*start != q[idxNode]) {
+                        cout << "error " << endl;
+                    }
+                    
+                    start++;
+                }
+                */
+
                 dVectorCursor += comps.size();
 
             }
         }
-
-        cout << "got past copying " << endl;
 
         cudaMallocManaged(cudaResult, _dbSize * sizeof(Matching::match_t));
 
@@ -1467,50 +1533,23 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
             .fileId = -1
         };
 
-        thrust::fill(*cudaResult, *cudaResult + _dbSize, init);
-
-        int cursor = 0;
-        int testPassed = 1;
-
-
-
-        /* // TEST PASSED
-        //TODO - test if thrust copied values correctly - Tested success
-        for (unsigned int idxNode = 0; idxNode < _usedNodes; idxNode++) {
-
-            float qi = q[idxNode];
-            if (qi > 0) {
-
-                vector<DComponent> &comps = _dVectors.at(idxNode);
-
-                for (int pos = 0; pos < comps.size(); pos++) {
-
-                    DComponent &dc = comps.at(pos);
-
-                    if (dc.value != cudaDVectors[cursor + pos].value) {
-                        cout << "Error in test at index " << pos << endl;
-                        testPassed = 0;
-                        break;
-                    } else if (dc.idFile != cudaDVectors[cursor + pos].idFile) {
-                        cout << "Error in test at index " << pos << endl;
-                        testPassed = 0;
-                        break;
-                    }
-
-                }
-
-                cursor += comps.size();
-
-            }
-        }
+        thrust::fill(thrust::device, *cudaResult, *cudaResult + _dbSize, init);
         
-
-        if (testPassed) {
-            cout << "cudaDVectors were copied success" << endl;
+        int dVectorNumBlocks = dVectorNumElements / THREADS_PER_BLOCK;
+        if (dVectorNumElements % THREADS_PER_BLOCK) {
+            dVectorNumBlocks++;
         }
-        */
+
+        dim3 dVectorBlocks(dVectorNumBlocks);
+        dim3 dVectorThreads(THREADS_PER_BLOCK);
+
+        calculateMatchScoreNEW<<<dVectorNumBlocks, dVectorThreads>>>(*cudaResult, cudaDVectors, qGreaterThanZero, dVectorNumElements);
+
+        cudaDeviceSynchronize();
 
         //TODO - launch kernel that traverses all dVectors
+        
+        /*
         
         cout << "got here..." << endl;
         for (unsigned int idxNode = 0; idxNode < _usedNodes; idxNode++) {
@@ -1551,6 +1590,8 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
         }
         //cudaDeviceSynchronize(); Use this here when loop above is improved to not free managed memory each iteration
         cout << "got here again ..." << endl;
+        */
+        
 
 
         /*
@@ -1579,6 +1620,9 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, Matching::match_t
             }
         }
 
+        cudaFree(cudaDVectors);
+        cudaFree(qGreaterThanZero);
+        
         cudaFree(cudaDescriptors);
         cudaFree(q);
         cudaFree(sums);
