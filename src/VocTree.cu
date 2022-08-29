@@ -1271,7 +1271,7 @@ __global__ void traverseDescriptors(float *descriptors, float *centers, int *ind
     while (!(indexLeaves[index[idNode]] != -1)) {
 
         int idClosest = 0;
-        float minDist = 0xffffffff; // TODO - check this number => Use FLT_MAX macro
+        float minDist = FLT_MAX;
 
         for (int i = 0; i < numCh; i++) {
 
