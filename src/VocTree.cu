@@ -1001,6 +1001,7 @@ VocTree::~VocTree() {
         cudaFree(_cudaWeights);
         cudaFree(_cudaQ);
         cudaFree(_cudaResult);
+        cudaFree(_cudaDVector);
     }
 
 }
@@ -1373,21 +1374,26 @@ __global__ void traverseDVectorSizes(float *q, int *cudaDVectorsLengths, int *se
 
 }
 
-__global__ void calculateMatchScore(Matching::match_t *cudaResult, float *compsValue, int *compsFileId, float qi, int N) {
+__global__ void calculateMatchScore(Matching::match_t *cudaResult, VocTree::DComponent *comps, float qi, int N) {
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (tid < N) {
 
+        /*
         int idFile = compsFileId[tid];
         float di = compsValue[tid];
+        float diff = abs(qi - di);
+        */
+
+        int idFile = comps[tid].idFile;
+        float di = comps[tid].value;
         float diff = abs(qi - di);
 
         //printf("tid %d : di, qi %f, %f\n", tid, di, qi);
 
         cudaResult[idFile].fileId = idFile;
         cudaResult[idFile].score += (diff - di - qi);
-
 
     }
 }
@@ -1445,11 +1451,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
 
         //testDescriptorEquality(descriptors, cudaDescriptors);
 
-        //TODO - allocate memory at voctree create
-        float *q;
-        size_t qSize = _usedNodes * sizeof(*q);
-        cudaMallocManaged(&q, qSize);
-        cudaMemset(q, 0, qSize);
+        cudaMemset(_cudaQ, 0, _usedNodes * sizeof(*_cudaQ));
 
         dim3 numDescriptors(descRows);
         dim3 numThreads(THREADS_PER_BLOCK);
@@ -1462,7 +1464,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
         cudaMallocManaged(&sums, sumsSize);
 
         //Call a kernel that traverses the descriptors
-        traverseDescriptors<<<numDescriptors, numThreads>>>(cudaDescriptors, _cudaCenters, _cudaIndex, _cudaIndexLeaves, _cudaWeights, q, sums, _centersCols, _k, _h);
+        traverseDescriptors<<<numDescriptors, numThreads>>>(cudaDescriptors, _cudaCenters, _cudaIndex, _cudaIndexLeaves, _cudaWeights, _cudaQ, sums, _centersCols, _k, _h);
         cudaDeviceSynchronize();
 
         float sum = thrust::reduce(thrust::device, sums, sums + descRows);
@@ -1477,7 +1479,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
         dim3 qBlocks(qNumBlocks);
         dim3 qThreads(THREADS_PER_BLOCK);
 
-        normalizeQVector<<<qBlocks, qThreads>>>(q, 1 / sum, _usedNodes);
+        normalizeQVector<<<qBlocks, qThreads>>>(_cudaQ, 1 / sum, _usedNodes);
 
         cudaDeviceSynchronize();
 
@@ -1500,27 +1502,14 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
 
         thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, init);
         
-    
-        cout << "got here..." << endl;
         for (unsigned int idxNode = 0; idxNode < _usedNodes; idxNode++) {
             
-            float qi = q[idxNode];
+            float qi = _cudaQ[idxNode];
             if (qi > 0) {
 
-                //TODO - load into managed memory
                 vector<DComponent> &comps = _dVectors.at(idxNode);
 
-                float *cudaCompsValue;
-                int *cudaCompsIdFile;
-                cudaMallocManaged(&cudaCompsValue, comps.size() * sizeof(*cudaCompsValue));
-                cudaMallocManaged(&cudaCompsIdFile, comps.size() * sizeof(*cudaCompsIdFile));
-
-
-                for (int i = 0; i < comps.size(); i++) {
-                    DComponent &dc = comps.at(i);
-                    cudaCompsValue[i] = dc.value;
-                    cudaCompsIdFile[i] = dc.idFile;
-                }
+                thrust::copy(thrust::host, comps.begin(), comps.end(), _cudaDVector);
                 
                 int dVectorNumBlocks = comps.size() / 32;
                 if (comps.size() % 32) {
@@ -1530,21 +1519,14 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
                 dim3 dVectorBlocks(dVectorNumBlocks);
                 dim3 dVectorThreads(THREADS_PER_BLOCK);
 
-                //TODO - launch kernel that calculates the matches
-                calculateMatchScore<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, cudaCompsValue, cudaCompsIdFile, qi, comps.size());
+                calculateMatchScore<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector, qi, comps.size());
                 cudaDeviceSynchronize();
-
-                cudaFree(cudaCompsValue);
-                cudaFree(cudaCompsIdFile);
 
             }
         }
-        //cudaDeviceSynchronize(); Use this here when loop above is improved to not free managed memory each iteration
-        cout << "got here again ..." << endl;
 
         sort(_cudaResult, _cudaResult + _dbSize, &compareMatch);
 
-        //quickSortCudaResults(cudaResult, 0, _dbSize - 1);
 
         for (int i = 0; i < *limit; i++) {
             cout << "result : " << _cudaResult[i].score << ", " << _cudaResult[i].fileId << endl;
@@ -1561,9 +1543,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
         }
 
         cudaFree(cudaDescriptors);
-        //cudaFree(q);
         cudaFree(sums);
-    
     
 }
 
@@ -1928,9 +1908,7 @@ VocTree::loadVectors(string &fileName) {
     int size;
     long read;
 
-    size_t total_size = 0;
-
-
+    int longestDVector = -1;
 
     while ((read = fread(pBuffer, 1, bufferLen, pFile)) > 0) {
 
@@ -1945,7 +1923,9 @@ VocTree::loadVectors(string &fileName) {
                 size = pInt[cursor++];
                 pComps->resize(size);
 
-                total_size += size;
+                if (size > longestDVector) {
+                    longestDVector = size;
+                }
 
                 onIdFile = true;
             } else {
@@ -1972,11 +1952,9 @@ VocTree::loadVectors(string &fileName) {
 
     }
 
-    total_size *= sizeof(DComponent);
-
     //TODO - cudaMalloc for the longest dVector size
-
-    cout << "The total size of dVectors " << total_size << endl;
+    cout << "The longest DVector " << longestDVector << endl;
+    cudaMallocManaged(&_cudaDVector, longestDVector * sizeof(DComponent));
 
     free(pBuffer);
     fclose(pFile);
@@ -2151,6 +2129,4 @@ Matching::match_t*
 VocTree::getCudaResult() {
     return _cudaResult;
 }
-
-
 

@@ -227,8 +227,9 @@ private:
     int idChild(int idNode, int numChild);
 
     vector<vector<DComponent> > _dVectors;
-    
 
+    DComponent *_cudaDVector;
+    
     /**
      * 
      * Test equality of _dVectors lengths stored in cuda array
