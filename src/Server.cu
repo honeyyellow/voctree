@@ -149,9 +149,12 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     vector<Matching> result;
 
-    Matching::match_t *cudaResult;
+    //Matching::match_t *cudaResult;
+    //TODO - fetch cudaResult via getters
 
-    db->query(fileQuery, result, &cudaResult, &limit);
+    db->query(fileQuery, result, /* &cudaResult, */ &limit);
+
+    Matching::match_t *cudaResult = db->getCudaResultFromVocTree();
 
     //vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
     vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResult, limit);
@@ -185,7 +188,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     }
 
-    cudaFree(cudaResult);
+    //cudaFree(cudaResult);
 
 }
 
@@ -295,6 +298,8 @@ void listenForClients(int port, Ptr<Database> db) {
 
     listen(sockfd, 5);
 
+    //TODO - load 
+
     bool term = false;
     while (!term) {
 
@@ -334,6 +339,8 @@ void listenForClients(int port, Ptr<Database> db) {
         */
 
     }
+
+
 
 
 }

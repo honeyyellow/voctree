@@ -80,7 +80,7 @@ public:
      */
     void cudaQuery(Mat &queryDescrs,
                vector<Matching> &result,
-               Matching::match_t **cudaResult,
+               /* Matching::match_t **cudaResult, */
                int *limit);
 
     /**
@@ -100,6 +100,11 @@ public:
      */
     void showInfo();
 
+    /**
+     * @return address of cuda result from query execution
+     */
+    Matching::match_t *getCudaResult();
+
     // used to store the d vectors
     // declared public to be accessible
     // by thrust library
@@ -108,7 +113,13 @@ public:
         float value;
     };
 
+
+
 private:
+
+    // Used in destructor to decide if memory must be deallocated
+    // based on how VocTree is initialized
+    int _gpuMemoryAllocate;
 
     // norm used to compare descriptors
     int _useNorm;
@@ -173,9 +184,9 @@ private:
 
     float *_cudaWeights;
 
+    float *_cudaQ;
 
-
-
+    Matching::match_t *_cudaResult;
 
     // for virtual inverted indexes (IIF: Inverted Index File)
     struct IIFEntry {
@@ -216,13 +227,7 @@ private:
     int idChild(int idNode, int numChild);
 
     vector<vector<DComponent> > _dVectors;
-
-    // Used to assist device memory management
-    // of _dVectors array above at runtime
-    int *_cudaDVectorsLengths;
-
-    int *_selectedDVectorLengths;
-    float *_selectedDVectorQValues;
+    
 
     /**
      * 

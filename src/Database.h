@@ -134,7 +134,7 @@ public:
      */
     void query(string &fileName,
                vector<Matching> &result,
-               Matching::match_t **cudaResult,
+               /* Matching::match_t **cudaResult, */
                int *limit);
 
     /**
@@ -149,7 +149,7 @@ public:
      */
     void query(string &fileName,
                vector<Matching> &result,
-               Matching::match_t **cudaResult,
+               /* Matching::match_t **cudaResult, */
                int *limit,
                Mat &outImage,
                vector<KeyPoint> &qKeypoints,
@@ -175,7 +175,6 @@ public:
 
     /**
      * Same as function above but for cuda query results.
-     *
      */
     vector<Database::ExportInfo> exportCudaResults(Matching::match_t *result, int limit);
 
@@ -220,6 +219,11 @@ public:
     const Catalog<DBElem> &getCatalog() {
         return _catalog;
     }
+
+    /**
+     * @return address of cuda result from VocTree
+     */
+    Matching::match_t *getCudaResultFromVocTree();
 
 private:
 
@@ -332,7 +336,7 @@ private:
 
     void loadDBConfig();
 
-    //Added
+    //Added for debugging purposes
     void writeKeypointsToFile(string filename, vector<KeyPoint> &keypoints);
 
 };

@@ -313,7 +313,6 @@ void printHelpQuery(string cmd) {
     cout << endl;
     cout << "---" << endl;
 
-
 }
 
 
