@@ -250,10 +250,11 @@ VocTree::buildNodeGen(
         } else {
 
             // Cluster from matrix
-            //cout << "cluster from matrix" << endl;
             cluster(_k, *pDescs, centers, matClusters);
 
         }
+
+        int clusterRowSum = 0;
 
         // for each cluster builds a child recursively
         for (int i = 0; i < _k; i++) {
@@ -268,6 +269,7 @@ VocTree::buildNodeGen(
 
             } else {
 
+                // Build tree with Matrix
                 Mat cluster = matClusters[i];
                 buildNodeFromMat(childId, newLevel, cluster);
 
@@ -279,7 +281,6 @@ VocTree::buildNodeGen(
             showProgress(_k, idNode, level, i);
 
         }
-
 
     }
 
@@ -361,6 +362,8 @@ VocTree::createNode(int idNode,
         // then process buffering from file.
         mp.close();
 
+        cout << "- Building node from file" << endl;
+
         buildNodeFromFile(idNode, level, file, rows);
         //buildNodeGen( idNode, level, true, &file, NULL, rows );
 
@@ -376,6 +379,8 @@ VocTree::createNode(int idNode,
         if (idNode != 0) {
             FileHelper::deleteFile(file);
         }
+
+        cout << "- Building node from RAM" << endl;
 
         buildNodeFromMat(idNode, level, descriptors);
 
@@ -477,11 +482,15 @@ VocTree::buildNodes() {
     _index.assign(_nNodes, 0);
     _indexLeaves.resize(_nNodes);
 
+    cout << "_centDim : " << endl;
+
     // create center buffer and expands it
     // for example. (K=10, h=6, dim=128x4) => approx. 543 MB
     _centers.create(0, _centDim, _centType);
     expand(_centers, _nNodes);
 
+    cout << "_usedNodes : " << _usedNodes << endl; 
+    
     // Creates root node.
     createNode(0, 0, fileDescriptors);
 
@@ -531,6 +540,8 @@ VocTree::VocTree(int k, int h, Catalog<DBElem> &images, string &path, bool reuse
         _dbSize = images.size();
         _useNorm = useNorm;
 
+        cout << "_dbSize :" << _dbSize << endl; 
+
         buildNodes();
 
         cout << "storing nodes" << endl;
@@ -549,6 +560,8 @@ VocTree::VocTree(int k, int h, Catalog<DBElem> &images, string &path, bool reuse
         cout << "creating inverted indexes..." << endl;
         addElements(images, 0);
         _dbSize = images.size();
+
+        cout << "_dbSize : " << _dbSize << endl;
 
         cout << "storing inverted indexes..." << endl;
         storeInvIdx(fileInvIdx);
@@ -570,6 +583,16 @@ VocTree::VocTree(int k, int h, Catalog<DBElem> &images, string &path, bool reuse
 
     showInfo();
 
+    // Print all info for thesis graphs here
+    cout << " --- MATRIX INFO START ---" << endl;
+    cout << "_centers Mat info : _centDim = " << _centDim << " | rows, cols = " << _centers.rows << ", " << _centers.cols << endl;
+    cout << "_weight Mat info : rows, cols = " << _weights.rows << ", " << _weights.cols << endl; 
+    cout << " --- MATRIX INFO END ---" << endl;
+
+    cout << " --- VECTOR INFO START ---" << endl;
+    cout << "_index info : length/size = " << _index.size() << endl; 
+    cout << " --- VECTOR INFO END ---" << endl; 
+
 }
 
 
@@ -582,6 +605,7 @@ VocTree::showInfo() {
     std::cout << ">children by node (K): " << _k << endl;
     std::cout << ">DB file count: " << _dbSize << endl;
     std::cout << ">total nodes: " << _usedNodes << endl;
+    std::cout << ">maximum nodes: " << _nNodes << endl;
     std::cout << ">total leaves: " << _usedLeaves << endl;
     std::cout << "-----------------------------" << endl;
 
@@ -1164,9 +1188,6 @@ VocTree::findPath(Mat &descriptor) {
         
             double d = norm(descriptor, _centers.row(idxChild), _useNorm);
 
-            //TODO - write own function for norm to check understanding
-            //TODO - write function for testing the correctness of my norm function
-
             if (i == 0 || d < minDist) {
                 minDist = d;
                 idClosest = childId;
@@ -1526,7 +1547,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
         }
 
         sort(_cudaResult, _cudaResult + _dbSize, &compareMatch);
-
+        
 
         for (int i = 0; i < *limit; i++) {
             cout << "result : " << _cudaResult[i].score << ", " << _cudaResult[i].fileId << endl;
@@ -1593,8 +1614,6 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
         //cout << "\t\t\tpath.size() : " << path.size() << endl;
 
-        int path_iter_count = 0;
-
         // computes qi = ni * wi (see paper 4.1)
         list<int>::iterator it = path.begin(); //TODO - inspect what this is
         for (; it != path.end(); it++) {
@@ -1627,9 +1646,8 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
             }
 
-            path_iter_count++;
         }
-        //cout << "\t\t\tnumber of iterations before path.end() was reached : " << path_iter_count << endl;
+
     }
 
     //nvtxRangePop();
