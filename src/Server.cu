@@ -149,19 +149,18 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     vector<Matching> result;
 
-    //Matching::match_t *cudaResult;
-    //TODO - fetch cudaResult via getters
 
-    db->query(fileQuery, result, /* &cudaResult, */ &limit);
+    db->query(fileQuery, result, &limit);
 
     Matching::match_t *cudaResult = db->getCudaResultFromVocTree();
 
     //vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
+
+    //TODO - use new function that does not write images to results directory
     vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResult, limit);
     //assert(result.size() == exports.size());
 
     cout << "query done." << endl;
-    //cout << "result size:" << result.size() << endl;
     cout << "result(limit) size:" << limit << endl;
 
     for (unsigned int i = 0; i < limit; i++) {
