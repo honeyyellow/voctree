@@ -1159,12 +1159,12 @@ Database::query(int idFile, vector<Matching> &result, int limit) {
 }
 
 void
-Database::query(string &fileName, vector<Matching> &result, /* Matching::match_t **cudaResult, */ int *limit) {
+Database::query(string &fileName, vector<Matching> &result, int *limit) {
 
     Mat img;
     vector<KeyPoint> qKeypoints;
     Mat qDescriptors;
-    query(fileName, result, /* cudaResult, */ limit, img, qKeypoints, qDescriptors);
+    query(fileName, result, limit, img, qKeypoints, qDescriptors);
 
 }
 
@@ -1172,7 +1172,6 @@ Database::query(string &fileName, vector<Matching> &result, /* Matching::match_t
 void
 Database::query(string &fileName,
                 vector<Matching> &result,
-                /* Matching::match_t **cudaResult, */
                 int *limit,
                 Mat &outImg,
                 vector<KeyPoint> &qKeypoints,
@@ -1210,10 +1209,9 @@ Database::query(string &fileName,
          << endl << flush;
 
 
-    cout << "db:running query..." << endl;
     //_vt->query(qDescriptors, result, *limit); // In original query
-    cout << endl << "CUDA QUERY STARTING HERE" << endl << endl;
-    _vt->cudaQuery(qDescriptors, result, /* cudaResult, */ limit);
+    cout << "db:running cuda query..." << endl;
+    _vt->cudaQuery(qDescriptors, result, limit);
 
     /*
     if (*limit != result.size()) {
@@ -1238,7 +1236,7 @@ Database::query(string &fileName,
     
     if (_exports) {
 
-        // TODO - rewrite exportResults to use cuda results
+
         cout << "exporting results..." << endl;
         exportCudaResults(_vt->getCudaResult(), *limit);
         //exportResults(result);
@@ -1247,7 +1245,6 @@ Database::query(string &fileName,
         exportFeaturesImage(fileName, img, qKeypoints);
 
     }
-    
 
 }
 
