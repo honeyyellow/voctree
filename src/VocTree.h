@@ -111,6 +111,7 @@ public:
     struct DComponent {
         int idFile;
         float value;
+        //float q; // Add this for kernel result computation
     };
 
 
@@ -176,8 +177,8 @@ private:
     // nodes information
     // _centers: Mat in R^(_usedNodes x D), stores the nodes centers (or visual words)
     // _weights: Mat in R^_usedNodes, stores the nodes weights
-    Mat _centers;
-    Mat _weights;
+    Mat _centers; // type is //TODO - add type here
+    Mat _weights; // type is 
 
     int _centersCols;
     float *_cudaCenters;
@@ -228,6 +229,8 @@ private:
 
     vector<vector<DComponent> > _dVectors;
 
+    // Set to the longest _dVector at VocTree start
+    // when the _dVectors are read into memory from file
     DComponent *_cudaDVector;
     
     /**
