@@ -254,8 +254,6 @@ VocTree::buildNodeGen(
 
         }
 
-        int clusterRowSum = 0;
-
         // for each cluster builds a child recursively
         for (int i = 0; i < _k; i++) {
 
@@ -495,7 +493,7 @@ VocTree::buildNodes() {
     createNode(0, 0, fileDescriptors);
 
     // reduce buffers to gain some memory
-    //_index.resize(_usedNodes);
+    _index.resize(_usedNodes);
     _indexLeaves.resize(_usedNodes);
     shrink(_centers, _usedNodes);
 
@@ -585,12 +583,15 @@ VocTree::VocTree(int k, int h, Catalog<DBElem> &images, string &path, bool reuse
 
     // Print all info for thesis graphs here
     cout << " --- MATRIX INFO START ---" << endl;
-    cout << "_centers Mat info : _centDim = " << _centDim << " | rows, cols = " << _centers.rows << ", " << _centers.cols << endl;
-    cout << "_weight Mat info : rows, cols = " << _weights.rows << ", " << _weights.cols << endl; 
+    cout << "_centers Mat info : _centDim = " << _centDim << " | rows, cols = " << _centers.rows << ", " << _centers.cols << ", byte size = " << _centers.rows * _centers.cols * sizeof(float) << endl;
+    cout << "_weight Mat info : rows, cols = " << _weights.rows << ", " << _weights.cols << ", byte size = " << _weights.rows * _weights.cols * sizeof(float) << endl;
     cout << " --- MATRIX INFO END ---" << endl;
 
     cout << " --- VECTOR INFO START ---" << endl;
-    cout << "_index info : length/size = " << _index.size() << endl; 
+    cout << "_index info : length = " << _index.size() << ", byte size = " << _index.size() * sizeof(int) << endl;
+    cout << "_indexLeaves info : length = " << _indexLeaves.size() << ", byte size = " << _indexLeaves.size() * sizeof(int) << endl;  
+    printdVectorInfo();
+    printInvIndexInfo();
     cout << " --- VECTOR INFO END ---" << endl; 
 
 }
@@ -1572,26 +1573,26 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
 void
 VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
-    //cout << " --- New call to VocTree::query() --- " << endl << endl;
-
-    //nvtxRangePush("__TEST__");
+    cout << " --- New call to VocTree::query() --- " << endl << endl;
 
     vector<float> q(_usedNodes, 0);
     double sum = 0;
 
-    cout << "Value of _usedNodes : " << _usedNodes << " q.size() : " << q.size() << endl;
+    //cout << "Value of _usedNodes : " << _usedNodes << " q.size() : " << q.size() << endl;
 
     // TODO - put all norms in a file
+    /*
     string filename = "norms.txt";
     ofstream debugFile;
     
     debugFile.open(filename);
     if (!debugFile)
         cerr << filename << " could not be opened." << endl;
+    */
+    
+    //int debug = 1;
+    
 
-    int debug = 1;
-
-    // TODO - port to CUDA
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
@@ -1609,8 +1610,8 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
             debug = 0;
         }
 
-        //list<int> path = findPath(qDescr);
-        list<int> path = debugFindPath(qDescr, debugFile, debug);
+        list<int> path = findPath(qDescr);
+        //list<int> path = debugFindPath(qDescr, debugFile, debug);
 
         //cout << "\t\t\tpath.size() : " << path.size() << endl;
 
@@ -1649,8 +1650,6 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         }
 
     }
-
-    //nvtxRangePop();
 
      //cout << "\t\tq.size():" << q.size() << endl;
 
@@ -2146,5 +2145,25 @@ VocTree::loadWeightsUnifiedMem(string &fileName, int *rows, int *cols) {
 Matching::match_t*
 VocTree::getCudaResult() {
     return _cudaResult;
+}
+
+void
+VocTree::printdVectorInfo() {
+    int totalElems = 0;
+    for (int i = 0; i < _dVectors.size(); i++) {
+        //cout << "node "<< i << "dVector length = " <<  _dVectors.at(i).size() << endl; 
+        totalElems += _dVectors.at(i).size();
+    }
+    cout << "_dVector info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(struct DComponent) << endl;
+}
+
+void
+VocTree::printInvIndexInfo() {
+    int totalElems = 0;
+    for (int i = 0; i < _invIdx.size(); i++) {
+        //cout << "node "<< i << "inverted file length = " <<  _invIdx.at(i).size() << endl; 
+        totalElems += _invIdx.at(i).size();
+    }
+    cout << "_invIdx info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(int) << endl;
 }
 

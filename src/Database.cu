@@ -855,10 +855,11 @@ Database::exportCudaResults(Matching::match_t *cudaResult, int limit) {
 
         cout << "exporting result: " << outName << endl;
 
+
         if (FileHelper::exists(outName)) {
 
             // file was already exported.
-
+        
         } else {
 
             if (res.type == TYPE_PICTURE) {
@@ -1209,9 +1210,9 @@ Database::query(string &fileName,
          << endl << flush;
 
 
-    //_vt->query(qDescriptors, result, *limit); // In original query
-    cout << "db:running cuda query..." << endl;
-    _vt->cudaQuery(qDescriptors, result, limit);
+    _vt->query(qDescriptors, result, *limit); // In original query
+    //cout << "db:running cuda query..." << endl;
+    //_vt->cudaQuery(qDescriptors, result, limit);
 
     /*
     if (*limit != result.size()) {
@@ -1234,12 +1235,13 @@ Database::query(string &fileName,
     resultFile.close();
     */
     
-    if (_exports) {
+    // set to false when timing query
+    if (false) {
 
 
         cout << "exporting results..." << endl;
-        exportCudaResults(_vt->getCudaResult(), *limit);
-        //exportResults(result);
+        //exportCudaResults(_vt->getCudaResult(), *limit); // Used in cuda query
+        exportResults(result);
 
         cout << "exporting features image..." << endl;
         exportFeaturesImage(fileName, img, qKeypoints);

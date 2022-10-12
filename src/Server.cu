@@ -149,12 +149,11 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     vector<Matching> result;
 
-
+    nvtxRangePush("__Query__");
     db->query(fileQuery, result, &limit);
+    nvtxRangePop();
 
-    Matching::match_t *cudaResult = db->getCudaResultFromVocTree();
-
-    //vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
+    vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
 
     //TODO - use new function that does not write images to results directory
     vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResult, limit);
@@ -166,7 +165,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
     for (unsigned int i = 0; i < limit; i++) {
 
         //Matching m = result.at(i); //
-        Database::ExportInfo info = exports.at(i);
+        Database::ExportInfo info = exports.at(i); // this 
 
         //cout << "matching:" << i << ", " << m.id << ", " << m.score << endl;
 

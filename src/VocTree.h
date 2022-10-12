@@ -471,6 +471,18 @@ private:
      */
     int getStartingFeatureRow(Catalog<DBElem> &catalog, int startImage);
 
+    /**
+     * 
+     * 
+     */
+    void printdVectorInfo();
+
+    /**
+     * 
+     * 
+     */
+    void printInvIndexInfo();
+
 
 };
 
