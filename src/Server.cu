@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <netdb.h>
 
+#include "nvToolsExt.h"
 
 using namespace std;
 using namespace cv;
@@ -156,26 +157,26 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
     vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
 
     //TODO - use new function that does not write images to results directory
-    vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResult, limit);
-    //assert(result.size() == exports.size());
+    //vector<Database::ExportInfo> exports = db->exportCudaResults(cudaResult, limit); // Used ub cuda queries
+
+    assert(result.size() == exports.size());
 
     cout << "query done." << endl;
-    cout << "result(limit) size:" << limit << endl;
+    cout << "limit size:" << limit << ", result size: " << result.size() << endl;
 
-    for (unsigned int i = 0; i < limit; i++) {
+    for (unsigned int i = 0; i < result.size(); i++) {
 
-        //Matching m = result.at(i); //
-        Database::ExportInfo info = exports.at(i); // this 
+        Matching m = result.at(i);
+        Database::ExportInfo info = exports.at(i);
 
-        //cout << "matching:" << i << ", " << m.id << ", " << m.score << endl;
-
-        //float score = m.score; //Used in original
-        //DBElem info = db->getFileInfo( m.id );
-        //cout << score << " " << info.name << endl;
+        float score = m.score; //Used in original
 
         stringstream ss;
-        //ss << score << "," << m.id << ", " << info.fileName << endl; // Used in original
-        ss << cudaResult[i].score << "," << cudaResult[i].fileId << ", " << info.fileName << endl;
+
+        ss << score << "," << m.id << ", " << info.fileName << endl; // Used in original
+
+        // Used in cuda solution
+        //ss << cudaResult[i].score << "," << cudaResult[i].fileId << ", " << info.fileName << endl;
 
 
         int n = write(sockfd, ss.str().c_str(), ss.str().size());
@@ -186,7 +187,6 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     }
 
-    //cudaFree(cudaResult);
 
 }
 

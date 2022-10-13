@@ -256,11 +256,6 @@ private:
     list<int> findPath(Mat &queryDescr);
 
     /**
-    * Same as function above ported to GPU
-    */
-    list<int> cudaFindPath(float *queryDescr);
-
-    /**
     * Same as function above running on CPU printing norm values to file
     */
     list<int> debugFindPath(Mat &descriptor, ofstream &file, int debug); 
@@ -336,13 +331,6 @@ private:
      * @param fileName output file name
      */
     void loadVectors(string &fileName);
-
-    /**
-     * Loads d-vectors data from disk into unified
-     * memory for GPU computation
-     * @param fileName output file name
-     */
-    void loadVectorsIntoUnifiedMem(string &filename);
 
 
     /**

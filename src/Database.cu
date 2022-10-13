@@ -934,7 +934,9 @@ Database::exportResults(vector<Matching> &result) {
 
         cout << "exporting result: " << outName << endl;
 
-        if (FileHelper::exists(outName)) {
+        if (true) {} // Dont export images when testing time
+
+        else if (FileHelper::exists(outName)) {
 
             // file was already exported.
 

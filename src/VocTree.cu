@@ -21,7 +21,7 @@
 #include "FileHelper.h"
 #include "KMeans.h"
 
-// try this
+// for nvtxpush and nvtxpop
 #include "nvToolsExt.h"
 
 using namespace cv;
@@ -480,20 +480,20 @@ VocTree::buildNodes() {
     _index.assign(_nNodes, 0);
     _indexLeaves.resize(_nNodes);
 
-    cout << "_centDim : " << endl;
+    //cout << "_centDim : " << endl;
 
     // create center buffer and expands it
     // for example. (K=10, h=6, dim=128x4) => approx. 543 MB
     _centers.create(0, _centDim, _centType);
     expand(_centers, _nNodes);
 
-    cout << "_usedNodes : " << _usedNodes << endl; 
+    //cout << "_usedNodes : " << _usedNodes << endl; 
     
     // Creates root node.
     createNode(0, 0, fileDescriptors);
 
     // reduce buffers to gain some memory
-    _index.resize(_usedNodes);
+    //_index.resize(_usedNodes);
     _indexLeaves.resize(_usedNodes);
     shrink(_centers, _usedNodes);
 
@@ -923,17 +923,16 @@ VocTree::loadNodes(string &filePrefix) {
     vp.restore(fileIdx, _index);
     vp.restore(fileLeaves, _indexLeaves);
 
-    int indexElemCount, indexLeavesElemCount;
-
+    //int indexElemCount, indexLeavesElemCount;
     //Added for mallocing _index and _indexLeaves to unified memory
-    vp.restoreIntUnifiedMem(fileIdx, &_cudaIndex, &indexElemCount);
-    vp.restoreIntUnifiedMem(fileLeaves, &_cudaIndexLeaves, &indexLeavesElemCount);
+    //vp.restoreIntUnifiedMem(fileIdx, &_cudaIndex, &indexElemCount);
+    //vp.restoreIntUnifiedMem(fileLeaves, &_cudaIndexLeaves, &indexLeavesElemCount);
 
     // Test _index and _cudaIndex equality
-    testIndexAndCudaIndexEquality(_index, _cudaIndex, indexElemCount);
+    //testIndexAndCudaIndexEquality(_index, _cudaIndex, indexElemCount);
     
     // Test _cudaIndexLeaves and _indexLeaves equality
-    testIndexAndCudaIndexEquality(_indexLeaves, _cudaIndexLeaves, indexLeavesElemCount);
+    //testIndexAndCudaIndexEquality(_indexLeaves, _cudaIndexLeaves, indexLeavesElemCount);
 
     //cout << "After restoreIntUnifiedMem, at _cudaIndex " << _cudaIndex[0] << endl;
 
@@ -943,16 +942,13 @@ VocTree::loadNodes(string &filePrefix) {
 
     //mpc.close();
 
-    int rows; // Used for testing
+    //int rows; // Used for testing
 
-    mpc.readUnifiedMem(&_cudaCenters, &rows, &_centersCols);
+    //mpc.readUnifiedMem(&_cudaCenters, &rows, &_centersCols);
 
     mpc.close();
 
-    testFloatMatAndCudaMemoryEquality(_centers, _cudaCenters, rows, _centersCols);
-    
-    // The type is 32FC1, 1 channel matrix of 32 bit floats from resulting cout below
-    //cout << "The type of _centers Mat object : " << type2str(_centers.type()) << endl;
+    //testFloatMatAndCudaMemoryEquality(_centers, _cudaCenters, rows, _centersCols);
 
 }
 
@@ -963,7 +959,7 @@ VocTree::VocTree(string &path) {
 
     std::cout << "voctree create" << endl;
 
-    _gpuMemoryAllocate = 1;
+    _gpuMemoryAllocate = 0;
 
     _path = path;
     FileManager fileMgr(_path);
@@ -994,19 +990,16 @@ VocTree::VocTree(string &path) {
     // The type is 32FC1, 1 channel matrix of 32 bit floats from resulting cout below
     //cout << "The type of _weights Mat object : " << type2str(_weights.type()) << endl;
 
-    int rows, cols; // used for testing
-
-    loadWeightsUnifiedMem(fileWeights, &rows, &cols);
-
-    testFloatMatAndCudaMemoryEquality(_weights, _cudaWeights, rows, cols);
+    //int rows, cols; // used for testing
+    //loadWeightsUnifiedMem(fileWeights, &rows, &cols); // Used in cuda version
+    //testFloatMatAndCudaMemoryEquality(_weights, _cudaWeights, rows, cols); // Used in cuda version
 
     std::cout << "loading d-vectors..." << endl;
     loadVectors(fileVectors);
 
     //TODO - cudaMalloc for q values
-    cudaMallocManaged(&_cudaQ, _usedNodes * sizeof(*_cudaQ));
-    cudaMallocManaged(&_cudaResult, _dbSize * sizeof(*_cudaResult));
-
+    //cudaMallocManaged(&_cudaQ, _usedNodes * sizeof(*_cudaQ));
+    //cudaMallocManaged(&_cudaResult, _dbSize * sizeof(*_cudaResult));
 
     std::cout << "voctree loaded" << endl;
 
@@ -1029,33 +1022,6 @@ VocTree::~VocTree() {
         cudaFree(_cudaDVector);
     }
 
-}
-
-list<int>
-VocTree::cudaFindPath(float *qDesc) {
-
-    list<int> path;
-    int idNode = 0;
-    unsigned int numCh = _k;
-
-    path.push_back(idNode);
-
-    while(!isLeaf(idNode)) {
-
-        //Search the closest sub-cluster
-        //int idClosest = 0;
-        //double minDist = numeric_limits<int>::max();
-
-        for (size_t i = 0; i < numCh; i++) {
-
-            int childId = idChild(idNode, i);
-            int idxChild = _index[childId];
-
-
-        }
-    }
-
-    return path;
 }
 
 list<int>
@@ -1159,34 +1125,16 @@ VocTree::findPath(Mat &descriptor) {
 
     path.push_back(idNode);
 
-    int numIters = 0;
-
-    // cout << "\t\t\tThe size of numCh : " << numCh << endl;
-
-    // Stdout of this print is 4 which is NORM_L2 in OpenCV
-    //cout << "_useNorm variable : " << _useNorm << endl;
-
-    /* // This if is true
-    if (descriptor.depth() == CV_32F && _centers.row(0).depth() == CV_32F ) {
-        cout << "Yes, CV_32F is the depth..." << endl;
-    }
-    */
-
     while (!isLeaf(idNode)) {
 
         //Search the closest sub-cluster
         int idClosest = 0;
         double minDist = numeric_limits<int>::max();
 
-        numIters++;
-
         for (size_t i = 0; i < numCh; i++) {
 
             int childId = idChild(idNode, i);
             int idxChild = _index[childId];
-
-            // TODO - port to CUDA
-        
             double d = norm(descriptor, _centers.row(idxChild), _useNorm);
 
             if (i == 0 || d < minDist) {
@@ -1194,16 +1142,12 @@ VocTree::findPath(Mat &descriptor) {
                 idClosest = childId;
             }
 
-            numIters++;
-
         }
 
         idNode = idClosest;
         path.push_back(idNode);
 
     }
-
-    //cout << "\t\tpath size in original query: " << path.size() << endl;
 
     return path;
 
@@ -1457,13 +1401,11 @@ struct greater_than_zero {
 
 void
 VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match_t **cudaResult, */ int *limit) {
-        //cout << " --- New call to VocTree::query() --- " << endl << endl;
 
         cout << "descriptors rows : " << descriptors.rows << endl;
 
         //nvtxRangePush("__TEST__");
         
-        // TODO - Find the size of the descriptors
         size_t descriptorsSize = descriptors.rows * 128 * 4; // Each row is a bin of 128 CV_32F
         int descRows = descriptors.rows;
         float *descPtr = descriptors.ptr<float>(0);
@@ -1573,72 +1515,27 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
 void
 VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
-    cout << " --- New call to VocTree::query() --- " << endl << endl;
+    //cout << " --- New call to VocTree::query() --- " << endl << endl;
 
     vector<float> q(_usedNodes, 0);
     double sum = 0;
-
-    //cout << "Value of _usedNodes : " << _usedNodes << " q.size() : " << q.size() << endl;
-
-    // TODO - put all norms in a file
-    /*
-    string filename = "norms.txt";
-    ofstream debugFile;
-    
-    debugFile.open(filename);
-    if (!debugFile)
-        cerr << filename << " could not be opened." << endl;
-    */
-    
-    //int debug = 1;
-    
 
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
 
-        /*
-        if (i == 0) {
-            cout << "Printing next last descriptor on the CPU" << endl;
-            for (int j = 0; j < 128; j++) {
-                cout << qDescr.at<float>(j) << " ";
-            }
-            cout << endl;
-        }
-        */
-        if (i > 0) {
-            debug = 0;
-        }
-
         list<int> path = findPath(qDescr);
-        //list<int> path = debugFindPath(qDescr, debugFile, debug);
-
-        //cout << "\t\t\tpath.size() : " << path.size() << endl;
+        //cout << "Got past find path..." << endl;
 
         // computes qi = ni * wi (see paper 4.1)
-        list<int>::iterator it = path.begin(); //TODO - inspect what this is
+        list<int>::iterator it = path.begin();
         for (; it != path.end(); it++) {
 
-            /*
-            if (i == 0) {
-                cout << "Path in orig query: ";
-            }
-            */
-            
-
             int idNode = (*it);
-
-            /*
-            if (i == 0) {
-                cout << "\t" << idNode << endl;
-            }
-            */
-            
 
             int idxNode = _index[idNode];
 
             float weight = _weights.at<float>(idxNode);
-
             if (!(isinf(weight))) {
 
                 q[idxNode] += weight; // L1
@@ -1651,11 +1548,6 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
     }
 
-     //cout << "\t\tq.size():" << q.size() << endl;
-
-    cout << "The sum from CPU calc : " << sum << endl;
-
-
     //Now normalize q vector
     for (unsigned int i = 0; i < q.size(); i++) {
 
@@ -1667,12 +1559,9 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
     }
 
-    //cout << "result.size(): " << result.size() << endl;
-
     //Now perform |q - d| for every d database element
     result.resize(_dbSize); // increases the size. 
 
-    //cout << "result.size() after resize: " << result.size() << endl;
 
     //for (int m = 0; m < _dbSize; m++) {
     //	//cout << "setting score for " << m << endl;
@@ -1682,21 +1571,14 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     //	match.score = 2;
     //}
 
+    cout << "got here..." << endl;
+
     //cout << "non-zero count:" << _d_vectors.nzCount() << endl;
     for (unsigned int idxNode = 0; idxNode < q.size(); idxNode++) {
         float qi = q[idxNode];
         if (qi > 0) {
 
             vector<DComponent> &comps = _dVectors.at(idxNode);
-
-            /*
-            if (prevCompSize != comps.size()) {
-                prevCompSize = comps.size();
-                cout << "Found new comps.size(): " << comps.size() << endl;
-
-            }
-            */
-            
             for (unsigned int pos = 0; pos < comps.size(); pos++) {
 
                 DComponent &dc = comps.at(pos);
@@ -1756,6 +1638,8 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         //cout << "shrinking" << shrink << endl;
         result.resize(result.size() - shrink);
     }
+
+    cout << "Result size after queries are done " << result.size() << endl;
 
 
 }
@@ -1853,46 +1737,6 @@ void VocTree::storeVectors(string &fileName) {
     free(pBuffer);
     fclose(pFile);
 
-
-}
-
-void
-VocTree::loadVectorsIntoUnifiedMem(string &filename) {
-
-    /*
-    FILE *pFile = fopen(filename.c_str(), "rb");
-
-    int rows = _usedNodes;
-
-    cudaMallocManaged(&_cudaDVectorsLengths, _usedNodes * 3 * sizeof(int));
-    //cudaMallocManaged()
-
-    int elemSize = 4;
-    int bufferLen = 16 * MEGA;
-    void *pBuffer = malloc(bufferLen);
-    if (pBuffer == NULL) {
-        fclose(pFile);
-        cerr << "can't allocate memory" << endl;
-        exit(-1);
-    }
-    int *pInt = (int *) pBuffer;
-    float *pFloat = (float *) pBuffer;
-    long read;
-
-    while ((read = fread(pBuffer, 1, bufferLen, pFile)) > 0) {
-
-        int cursor = 0;
-
-
-
-
-
-
-    }
-    
-
-    */
-    
 
 }
 
