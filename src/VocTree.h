@@ -79,8 +79,6 @@ public:
      * Same as function above ported to the GPU.
      */
     void cudaQuery(Mat &queryDescrs,
-               vector<Matching> &result,
-               /* Matching::match_t **cudaResult, */
                int *limit);
 
     /**

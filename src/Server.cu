@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <netdb.h>
 
+#include "nvToolsExt.h"
 
 using namespace std;
 using namespace cv;
@@ -147,12 +148,18 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
     //int limit = 6; //result.size() > 10 ? 10 : result.size();
     int limit = 16; //result.size() > 10 ? 10 : result.size();
 
-    vector<Matching> result;
+    //vector<Matching> result;
 
-
-    db->query(fileQuery, result, &limit);
-
+    nvtxRangePush("__Host__");
+    db->query(fileQuery, &limit);
     Matching::match_t *cudaResult = db->getCudaResultFromVocTree();
+    // Access on host to also time the 
+    for (int i = 0; i < limit; i++) {
+        float score = cudaResult[i].score;
+        float fileId = cudaResult[i].fileId;
+    }
+    nvtxRangePop();
+
 
     //vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
 

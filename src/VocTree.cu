@@ -254,8 +254,6 @@ VocTree::buildNodeGen(
 
         }
 
-        int clusterRowSum = 0;
-
         // for each cluster builds a child recursively
         for (int i = 0; i < _k; i++) {
 
@@ -1455,14 +1453,11 @@ struct greater_than_zero {
 };
 
 void
-VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match_t **cudaResult, */ int *limit) {
-        //cout << " --- New call to VocTree::query() --- " << endl << endl;
-
-        cout << "descriptors rows : " << descriptors.rows << endl;
+VocTree::cudaQuery(Mat &descriptors, int *limit) {
+        //cout << "descriptors rows : " << descriptors.rows << endl;
 
         //nvtxRangePush("__TEST__");
         
-        // TODO - Find the size of the descriptors
         size_t descriptorsSize = descriptors.rows * 128 * 4; // Each row is a bin of 128 CV_32F
         int descRows = descriptors.rows;
         float *descPtr = descriptors.ptr<float>(0);
@@ -1489,7 +1484,7 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
         cudaDeviceSynchronize();
 
         float sum = thrust::reduce(thrust::device, sums, sums + descRows);
-        cout << "The sum from GPU calc (using thrust): " << sum << endl; 
+        //cout << "The sum from GPU calc (using thrust): " << sum << endl; 
 
         int qNumBlocks = _usedNodes / THREADS_PER_BLOCK;
 
@@ -1548,10 +1543,11 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
 
         sort(_cudaResult, _cudaResult + _dbSize, &compareMatch);
         
-
+        /*
         for (int i = 0; i < *limit; i++) {
             cout << "result : " << _cudaResult[i].score << ", " << _cudaResult[i].fileId << endl;
         }
+        */
         
         //TODO - shrink the results
         float zeroEps = 1e-03;

@@ -853,9 +853,13 @@ Database::exportCudaResults(Matching::match_t *cudaResult, int limit) {
 
         string outKeypName = fileMgr.resultDir() + "/keyp_" + ei.fileName;
 
-        cout << "exporting result: " << outName << endl;
+        //cout << "exporting result: " << outName << endl;
 
-        if (FileHelper::exists(outName)) {
+        if (true) {
+
+            // Don't write to disk when timing queries
+
+        } else if (FileHelper::exists(outName)) {
 
             // file was already exported.
 
@@ -933,7 +937,12 @@ Database::exportResults(vector<Matching> &result) {
 
         cout << "exporting result: " << outName << endl;
 
-        if (FileHelper::exists(outName)) {
+        if (true) {
+
+            // Don't export images when testing time
+
+        }
+        else if (FileHelper::exists(outName)) {
 
             // file was already exported.
 
@@ -1159,19 +1168,18 @@ Database::query(int idFile, vector<Matching> &result, int limit) {
 }
 
 void
-Database::query(string &fileName, vector<Matching> &result, int *limit) {
+Database::query(string &fileName, int *limit) {
 
     Mat img;
     vector<KeyPoint> qKeypoints;
     Mat qDescriptors;
-    query(fileName, result, limit, img, qKeypoints, qDescriptors);
+    query(fileName, limit, img, qKeypoints, qDescriptors);
 
 }
 
 
 void
 Database::query(string &fileName,
-                vector<Matching> &result,
                 int *limit,
                 Mat &outImg,
                 vector<KeyPoint> &qKeypoints,
@@ -1202,16 +1210,18 @@ Database::query(string &fileName,
         _pca->project(qDescriptors, qDescriptors);
     }
 
+    /*
     cout << " feat:"
          << qDescriptors.rows
          << " " << qDescriptors.cols
          << " " << qDescriptors.type()
          << endl << flush;
+    */
 
 
     //_vt->query(qDescriptors, result, *limit); // In original query
-    cout << "db:running cuda query..." << endl;
-    _vt->cudaQuery(qDescriptors, result, limit);
+    //cout << "db:running cuda query..." << endl;
+    _vt->cudaQuery(qDescriptors, limit);
 
     /*
     if (*limit != result.size()) {
@@ -1234,7 +1244,8 @@ Database::query(string &fileName,
     resultFile.close();
     */
     
-    if (_exports) {
+    // Dont write to disk when timing queries
+    if (false) {
 
 
         cout << "exporting results..." << endl;

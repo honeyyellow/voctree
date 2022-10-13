@@ -133,8 +133,6 @@ public:
      * @param limit maximum number of results
      */
     void query(string &fileName,
-               vector<Matching> &result,
-               /* Matching::match_t **cudaResult, */
                int *limit);
 
     /**
@@ -148,8 +146,6 @@ public:
      * @param qDescriptors the descriptors computed for the query image
      */
     void query(string &fileName,
-               vector<Matching> &result,
-               /* Matching::match_t **cudaResult, */
                int *limit,
                Mat &outImage,
                vector<KeyPoint> &qKeypoints,
