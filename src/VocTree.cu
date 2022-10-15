@@ -580,17 +580,6 @@ VocTree::VocTree(int k, int h, Catalog<DBElem> &images, string &path, bool reuse
     cout << "voctree created" << endl;
 
     showInfo();
-
-    // Print all info for thesis graphs here
-    cout << " --- MATRIX INFO START ---" << endl;
-    cout << "_centers Mat info : _centDim = " << _centDim << " | rows, cols = " << _centers.rows << ", " << _centers.cols << endl;
-    cout << "_weight Mat info : rows, cols = " << _weights.rows << ", " << _weights.cols << endl; 
-    cout << " --- MATRIX INFO END ---" << endl;
-
-    cout << " --- VECTOR INFO START ---" << endl;
-    cout << "_index info : length/size = " << _index.size() << endl; 
-    cout << " --- VECTOR INFO END ---" << endl; 
-
 }
 
 
@@ -917,26 +906,25 @@ VocTree::loadNodes(string &filePrefix) {
     string fileCenters = filePrefix + ".centers";
 
     VecPersistor vp;
-    vp.restore(fileIdx, _index);
-    vp.restore(fileLeaves, _indexLeaves);
+    //vp.restore(fileIdx, _index);
+    //vp.restore(fileLeaves, _indexLeaves);
 
-    int indexElemCount, indexLeavesElemCount;
-
+    int indexElemCount, indexLeavesElemCount; // Used for testing
     //Added for mallocing _index and _indexLeaves to unified memory
     vp.restoreIntUnifiedMem(fileIdx, &_cudaIndex, &indexElemCount);
     vp.restoreIntUnifiedMem(fileLeaves, &_cudaIndexLeaves, &indexLeavesElemCount);
 
     // Test _index and _cudaIndex equality
-    testIndexAndCudaIndexEquality(_index, _cudaIndex, indexElemCount);
+    //testIndexAndCudaIndexEquality(_index, _cudaIndex, indexElemCount);
     
     // Test _cudaIndexLeaves and _indexLeaves equality
-    testIndexAndCudaIndexEquality(_indexLeaves, _cudaIndexLeaves, indexLeavesElemCount);
+    //testIndexAndCudaIndexEquality(_indexLeaves, _cudaIndexLeaves, indexLeavesElemCount);
 
     //cout << "After restoreIntUnifiedMem, at _cudaIndex " << _cudaIndex[0] << endl;
 
     MatPersistor mpc(fileCenters);
     mpc.openRead();
-    mpc.read(_centers);
+    //mpc.read(_centers);
 
     //mpc.close();
 
@@ -946,10 +934,7 @@ VocTree::loadNodes(string &filePrefix) {
 
     mpc.close();
 
-    testFloatMatAndCudaMemoryEquality(_centers, _cudaCenters, rows, _centersCols);
-    
-    // The type is 32FC1, 1 channel matrix of 32 bit floats from resulting cout below
-    //cout << "The type of _centers Mat object : " << type2str(_centers.type()) << endl;
+    //testFloatMatAndCudaMemoryEquality(_centers, _cudaCenters, rows, _centersCols);
 
 }
 
@@ -986,26 +971,32 @@ VocTree::VocTree(string &path) {
     }
 
     std::cout << "loading weights..." << endl;
-    loadWeights(fileWeights);
-
-    // The type is 32FC1, 1 channel matrix of 32 bit floats from resulting cout below
-    //cout << "The type of _weights Mat object : " << type2str(_weights.type()) << endl;
-
-    int rows, cols; // used for testing
-
+    //loadWeights(fileWeights); // used in original
+    int rows, cols;
     loadWeightsUnifiedMem(fileWeights, &rows, &cols);
 
-    testFloatMatAndCudaMemoryEquality(_weights, _cudaWeights, rows, cols);
+    //testFloatMatAndCudaMemoryEquality(_weights, _cudaWeights, rows, cols);
 
     std::cout << "loading d-vectors..." << endl;
     loadVectors(fileVectors);
 
-    //TODO - cudaMalloc for q values
+    // cudaMalloc for query BoF vector
     cudaMallocManaged(&_cudaQ, _usedNodes * sizeof(*_cudaQ));
+
+    // cudaMalloc for image match score calculation
     cudaMallocManaged(&_cudaResult, _dbSize * sizeof(*_cudaResult));
 
+    //TODO - put in function
+    std::cout << "Query BoF vector size : " << _usedNodes * sizeof(*_cudaQ) << endl;
+    std::cout << "_cudaResult size : " <<  _dbSize * sizeof(*_cudaResult) << endl;
 
     std::cout << "voctree loaded" << endl;
+    std::cout << "_usedNodes : " << _usedNodes << endl;
+    std::cout << "_index size : " << _usedNodes * sizeof(int) << endl;
+    std::cout << "_indexLeaves size : " << _usedNodes * sizeof(int) << endl;
+    std::cout << "_weights size : " << _usedNodes * sizeof(float) << endl;
+    std::cout << "_dVectors size : " << _dVectorsSize << endl;
+    std::cout << "_invIndex size : " << 0 << endl;
 
     showInfo();
 
@@ -1923,6 +1914,7 @@ VocTree::loadVectors(string &fileName) {
     long read;
 
     int longestDVector = -1;
+    _dVectorsSize = 0;
 
     while ((read = fread(pBuffer, 1, bufferLen, pFile)) > 0) {
 
@@ -1937,8 +1929,11 @@ VocTree::loadVectors(string &fileName) {
                 size = pInt[cursor++];
                 pComps->resize(size);
 
+                _dVectorsSize += size;
+
                 if (size > longestDVector) {
                     longestDVector = size;
+                    cout << "Found new dVector length : " << longestDVector << endl;
                 }
 
                 onIdFile = true;
@@ -1966,7 +1961,7 @@ VocTree::loadVectors(string &fileName) {
 
     }
 
-    //TODO - cudaMalloc for the longest dVector size
+    // cudaMalloc for the longest dVector size
     cout << "The longest DVector " << longestDVector << endl;
     cudaMallocManaged(&_cudaDVector, longestDVector * sizeof(DComponent));
 
@@ -2137,6 +2132,26 @@ VocTree::loadWeightsUnifiedMem(string &fileName, int *rows, int *cols) {
 
     mp.close();
 
+}
+
+void
+VocTree::printdVectorInfo() {
+    int totalElems = 0;
+    for (int i = 0; i < _dVectors.size(); i++) {
+        //cout << "node "<< i << "dVector length = " <<  _dVectors.at(i).size() << endl; 
+        totalElems += _dVectors.at(i).size();
+    }
+    cout << "_dVector info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(struct DComponent) << endl;
+}
+
+void
+VocTree::printInvIndexInfo() {
+    int totalElems = 0;
+    for (int i = 0; i < _invIdx.size(); i++) {
+        //cout << "node "<< i << "inverted file length = " <<  _invIdx.at(i).size() << endl; 
+        totalElems += _invIdx.at(i).size();
+    }
+    cout << "_invIdx info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(int) << endl;
 }
 
 Matching::match_t*

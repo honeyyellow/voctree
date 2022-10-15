@@ -150,6 +150,8 @@ private:
     // Number of indexed descriptors
     int _totDescriptors;
 
+    size_t _dVectorsSize;
+
     // nodes index
     // since the vocabulary tree is not a <K,H> complete tree, only the used nodes indices are stored
     // in this _index vector. _index vector length will be the number of used nodes.
@@ -468,6 +470,18 @@ private:
      * @return the total accumulated number of descriptors indexed from 0 to startImage
      */
     int getStartingFeatureRow(Catalog<DBElem> &catalog, int startImage);
+
+    /**
+     * 
+     * 
+     */
+    void printdVectorInfo();
+
+    /**
+     * 
+     * 
+     */
+    void printInvIndexInfo();
 
 
 };
