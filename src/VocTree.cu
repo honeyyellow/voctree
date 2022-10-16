@@ -1003,6 +1003,8 @@ VocTree::VocTree(string &path) {
 
     std::cout << "voctree loaded" << endl;
 
+    std::cout << "_dVectors size : " << _dVectorsSize << endl;
+
     showInfo();
 
 }
@@ -1769,7 +1771,7 @@ VocTree::loadVectors(string &fileName) {
     int size;
     long read;
 
-    int longestDVector = -1;
+    _dVectorsSize = 0;
 
     while ((read = fread(pBuffer, 1, bufferLen, pFile)) > 0) {
 
@@ -1784,9 +1786,14 @@ VocTree::loadVectors(string &fileName) {
                 size = pInt[cursor++];
                 pComps->resize(size);
 
+                /*
                 if (size > longestDVector) {
                     longestDVector = size;
                 }
+                */
+                _dVectorsSize += size;
+
+
 
                 onIdFile = true;
             } else {
@@ -1814,8 +1821,8 @@ VocTree::loadVectors(string &fileName) {
     }
 
     //TODO - cudaMalloc for the longest dVector size
-    cout << "The longest DVector " << longestDVector << endl;
-    cudaMallocManaged(&_cudaDVector, longestDVector * sizeof(DComponent));
+    //cout << "The longest DVector " << longestDVector << endl;
+    //cudaMallocManaged(&_cudaDVector, longestDVector * sizeof(DComponent));
 
     free(pBuffer);
     fclose(pFile);

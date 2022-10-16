@@ -152,6 +152,8 @@ private:
     // Number of indexed descriptors
     int _totDescriptors;
 
+    size_t _dVectorsSize;
+
     // nodes index
     // since the vocabulary tree is not a <K,H> complete tree, only the used nodes indices are stored
     // in this _index vector. _index vector length will be the number of used nodes.
@@ -234,7 +236,6 @@ private:
     DComponent *_cudaDVector;
     
     /**
-     * 
      * Test equality of _dVectors lengths stored in cuda array
      * and acutal length in dVectors
      */
