@@ -1933,7 +1933,6 @@ VocTree::loadVectors(string &fileName) {
 
                 if (size > longestDVector) {
                     longestDVector = size;
-                    cout << "Found new dVector length : " << longestDVector << endl;
                 }
 
                 onIdFile = true;
