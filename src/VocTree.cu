@@ -1517,11 +1517,11 @@ VocTree::cudaQuery(Mat &descriptors, vector<Matching> &result, /*Matching::match
 void
 VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
-    //cout << " --- New call to VocTree::query() --- " << endl << endl;
 
     vector<float> q(_usedNodes, 0);
     double sum = 0;
 
+    nvtxRangePush("__Traverse_descriptors_baseline__");
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
@@ -1549,17 +1549,18 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         }
 
     }
+    nvtxRangePop();
 
     //Now normalize q vector
+    nvtxRangePush("__normalize_q_vector_baseline__");
     for (unsigned int i = 0; i < q.size(); i++) {
-
 
         //q[i] = sqrt( q[i] / sum ); // Hellinger Kernel?
         q[i] /= sum; // L1
         //q[i] /= sum*sum; // L2
 
-
     }
+    nvtxRangePop();
 
     //Now perform |q - d| for every d database element
     result.resize(_dbSize); // increases the size. 
@@ -1573,8 +1574,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     //	match.score = 2;
     //}
 
-    cout << "got here..." << endl;
-
+    nvtxRangePush("__Calculate_match_score_baseline__");
     //cout << "non-zero count:" << _d_vectors.nzCount() << endl;
     for (unsigned int idxNode = 0; idxNode < q.size(); idxNode++) {
         float qi = q[idxNode];
@@ -1598,6 +1598,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
 
         }
     }
+    nvtxRangePop();
 
     //cout << "comps.size() over 15: " << compsOverThresCount << endl;
 
@@ -1641,7 +1642,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         result.resize(result.size() - shrink);
     }
 
-    cout << "Result size after queries are done " << result.size() << endl;
+    //cout << "Result size after queries are done " << result.size() << endl;
 
 
 }
@@ -2015,6 +2016,6 @@ VocTree::printInvIndexInfo() {
         //cout << "node "<< i << "inverted file length = " <<  _invIdx.at(i).size() << endl; 
         totalElems += _invIdx.at(i).size();
     }
-    cout << "_invIdx info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(int) << endl;
+g    cout << "_invIdx info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(int) << endl;
 }
 
