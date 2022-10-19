@@ -150,7 +150,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     //vector<Matching> result;
 
-    nvtxRangePush("__Host__");
+    nvtxRangePush("__CUDA query__");
     db->query(fileQuery, &limit);
     Matching::match_t *cudaResult = db->getCudaResultFromVocTree();
     // Access on host to also time the 
@@ -159,7 +159,6 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
         float fileId = cudaResult[i].fileId;
     }
     nvtxRangePop();
-
 
     //vector<Database::ExportInfo> exports = db->exportResults(result); // Used in original
 
