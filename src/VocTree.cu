@@ -2016,6 +2016,6 @@ VocTree::printInvIndexInfo() {
         //cout << "node "<< i << "inverted file length = " <<  _invIdx.at(i).size() << endl; 
         totalElems += _invIdx.at(i).size();
     }
-g    cout << "_invIdx info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(int) << endl;
+    cout << "_invIdx info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(int) << endl;
 }
 
