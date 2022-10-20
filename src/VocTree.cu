@@ -362,6 +362,10 @@ VocTree::createNode(int idNode,
 
         cout << "- Building node from file" << endl;
 
+        if (idNode == 0) {
+            cout << "\tclustering in total " << rows << " descriptors" << endl;
+        }
+
         buildNodeFromFile(idNode, level, file, rows);
         //buildNodeGen( idNode, level, true, &file, NULL, rows );
 
@@ -379,6 +383,10 @@ VocTree::createNode(int idNode,
         }
 
         cout << "- Building node from RAM" << endl;
+        
+        if (idNode == 0) {
+            cout << "\tclustering in total " << descriptors.rows << " descriptors " << endl;
+        }
 
         buildNodeFromMat(idNode, level, descriptors);
 
