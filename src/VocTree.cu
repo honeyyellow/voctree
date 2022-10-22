@@ -27,6 +27,11 @@
 using namespace cv;
 using namespace std;
 
+const Matching::match_t RESULT_INIT_VALUE = {
+    .score = 2,
+    .fileId = -1
+};
+
 // To retrieve type of opencv Mat object
 // https://stackoverflow.com/questions/10167534/how-to-find-out-what-type-of-a-mat-object-is-with-mattype-in-opencv
 string type2str(int type) {
@@ -906,13 +911,13 @@ VocTree::loadNodes(string &filePrefix) {
     string fileCenters = filePrefix + ".centers";
 
     VecPersistor vp;
-    //vp.restore(fileIdx, _index);
-    //vp.restore(fileLeaves, _indexLeaves);
+    vp.restore(fileIdx, _index);
+    vp.restore(fileLeaves, _indexLeaves);
 
     int indexElemCount, indexLeavesElemCount; // Used for testing
     //Added for mallocing _index and _indexLeaves to unified memory
-    vp.restoreIntUnifiedMem(fileIdx, &_cudaIndex, &indexElemCount);
-    vp.restoreIntUnifiedMem(fileLeaves, &_cudaIndexLeaves, &indexLeavesElemCount);
+    //vp.restoreIntUnifiedMem(fileIdx, &_cudaIndex, &indexElemCount);
+    //vp.restoreIntUnifiedMem(fileLeaves, &_cudaIndexLeaves, &indexLeavesElemCount);
 
     // Test _index and _cudaIndex equality
     //testIndexAndCudaIndexEquality(_index, _cudaIndex, indexElemCount);
@@ -924,13 +929,13 @@ VocTree::loadNodes(string &filePrefix) {
 
     MatPersistor mpc(fileCenters);
     mpc.openRead();
-    //mpc.read(_centers);
+    mpc.read(_centers);
 
     //mpc.close();
 
     int rows; // Used for testing
 
-    mpc.readUnifiedMem(&_cudaCenters, &rows, &_centersCols);
+    //mpc.readUnifiedMem(&_cudaCenters, &rows, &_centersCols);
 
     mpc.close();
 
@@ -971,9 +976,9 @@ VocTree::VocTree(string &path) {
     }
 
     std::cout << "loading weights..." << endl;
-    //loadWeights(fileWeights); // used in original
+    loadWeights(fileWeights); // used in original
     int rows, cols;
-    loadWeightsUnifiedMem(fileWeights, &rows, &cols);
+    //loadWeightsUnifiedMem(fileWeights, &rows, &cols);
 
     //testFloatMatAndCudaMemoryEquality(_weights, _cudaWeights, rows, cols);
 
@@ -981,13 +986,13 @@ VocTree::VocTree(string &path) {
     loadVectors(fileVectors);
 
     // cudaMalloc for query BoF vector
-    cudaMallocManaged(&_cudaQ, _usedNodes * sizeof(*_cudaQ));
+    _queryBoF = (float *) malloc(_usedNodes * sizeof(*_queryBoF));
 
     // cudaMalloc for image match score calculation
     cudaMallocManaged(&_cudaResult, _dbSize * sizeof(*_cudaResult));
 
     //TODO - put in function
-    std::cout << "Query BoF vector size : " << _usedNodes * sizeof(*_cudaQ) << endl;
+    std::cout << "Query BoF vector size : " << _usedNodes * sizeof(*_queryBoF) << endl;
     std::cout << "_cudaResult size : " <<  _dbSize * sizeof(*_cudaResult) << endl;
 
     std::cout << "voctree loaded" << endl;
@@ -1006,45 +1011,21 @@ VocTree::VocTree(string &path) {
 VocTree::~VocTree() {
     cout << "voctree delete" << endl;
 
-    //TODO - call cudaFree on various managed memory spaces
+    /*
+    // Deallocate memory spaces
     if (_gpuMemoryAllocate) {
         cudaFree(_cudaIndex);
         cudaFree(_cudaIndexLeaves);
         cudaFree(_cudaCenters);
         cudaFree(_cudaWeights);
-        cudaFree(_cudaQ);
+        cudaFree(_queryBoF);
         cudaFree(_cudaResult);
         cudaFree(_cudaDVector);
     }
+    */
 
 }
 
-list<int>
-VocTree::cudaFindPath(float *qDesc) {
-
-    list<int> path;
-    int idNode = 0;
-    unsigned int numCh = _k;
-
-    path.push_back(idNode);
-
-    while(!isLeaf(idNode)) {
-
-        //Search the closest sub-cluster
-        //int idClosest = 0;
-        //double minDist = numeric_limits<int>::max();
-
-        for (size_t i = 0; i < numCh; i++) {
-
-            int childId = idChild(idNode, i);
-            int idxChild = _index[childId];
-
-
-        }
-    }
-
-    return path;
-}
 
 list<int>
 VocTree::debugFindPath(Mat &descriptor, ofstream &file, int debug) {
@@ -1147,33 +1128,16 @@ VocTree::findPath(Mat &descriptor) {
 
     path.push_back(idNode);
 
-    int numIters = 0;
-
-    // cout << "\t\t\tThe size of numCh : " << numCh << endl;
-
-    // Stdout of this print is 4 which is NORM_L2 in OpenCV
-    //cout << "_useNorm variable : " << _useNorm << endl;
-
-    /* // This if is true
-    if (descriptor.depth() == CV_32F && _centers.row(0).depth() == CV_32F ) {
-        cout << "Yes, CV_32F is the depth..." << endl;
-    }
-    */
-
     while (!isLeaf(idNode)) {
 
         //Search the closest sub-cluster
         int idClosest = 0;
         double minDist = numeric_limits<int>::max();
 
-        numIters++;
-
         for (size_t i = 0; i < numCh; i++) {
 
             int childId = idChild(idNode, i);
             int idxChild = _index[childId];
-
-            // TODO - port to CUDA
         
             double d = norm(descriptor, _centers.row(idxChild), _useNorm);
 
@@ -1182,8 +1146,6 @@ VocTree::findPath(Mat &descriptor) {
                 idClosest = childId;
             }
 
-            numIters++;
-
         }
 
         idNode = idClosest;
@@ -1191,9 +1153,58 @@ VocTree::findPath(Mat &descriptor) {
 
     }
 
-    //cout << "\t\tpath size in original query: " << path.size() << endl;
 
     return path;
+}
+
+void
+VocTree::cudaFindPath(Mat &descriptor, float *queryBoFSum) {
+
+    int idNode = 0;
+
+    while (!isLeaf(idNode)) {
+
+        //Search the closest sub-cluster
+        int idClosest = 0;
+        double minDist = numeric_limits<int>::max();
+
+        // Possibly launch a kernel to do this?
+        for (size_t i = 0; i < _k; i++) {
+
+            int childId = idChild(idNode, i);
+            int idxChild = _index[childId];
+        
+            double d = norm(descriptor, _centers.row(idxChild), _useNorm);
+
+            if (i == 0 || d < minDist) {
+                minDist = d;
+                idClosest = childId;
+            }
+
+        }
+
+        idNode = idClosest;
+        int idxNode = _index[idNode];
+        float weight = _weights.at<float>(idxNode);
+
+        if (!isinf(weight)) {
+            _queryBoF[idxNode] += weight;
+            *queryBoFSum += weight;
+    
+            // Fill the result for this node the first
+            // the weight is added to query BoF
+            /*
+            if (_queryBoF[idxNode] == weight) {
+                // Is this asynchronous? Do I need to use a kernel launch to achieve a asynchronous launch?
+                // Use streams here?
+                thrust::fill(thrust::device, _cudaResult + (idxNode * _dbSize), _cudaResult + (idxNode * _dbSize) + _dbSize, RESULT_INIT_VALUE);
+            }
+            */
+
+        }
+
+
+    }
 
 }
 
@@ -1409,27 +1420,30 @@ __global__ void calculateMatchScore(Matching::match_t *cudaResult, VocTree::DCom
 }
 
 
-__global__ void calculateMatchScoreNEW(Matching::match_t *cudaResult, VocTree::DComponent *cudaDVectors, float *qGreaterThanZero, int N) {
+__global__ void calculateMatchScoreNew(Matching::match_t *cudaResult, VocTree::DComponent *comps, float qi, int N) {
 
-    
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (tid < N) {
 
-        int idFile = cudaDVectors[tid].idFile;
-        float di = cudaDVectors[tid].value;
-        float qi = qGreaterThanZero[tid];
+        /*
+        int idFile = compsFileId[tid];
+        float di = compsValue[tid];
+        float diff = abs(qi - di);
+        */
+
+        int idFile = comps[tid].idFile;
+        float di = comps[tid].value;
         float diff = abs(qi - di);
 
         //printf("tid %d : di, qi %f, %f\n", tid, di, qi);
 
         cudaResult[idFile].fileId = idFile;
-        atomicAdd(&(cudaResult[idFile].score), diff - di - qi);
-        //cudaResult[idFile].score += (diff - di - qi);
-
+        cudaResult[idFile].score += (diff - di - qi);
     }
-    
+
 }
+
 
 
 bool compareMatch(const Matching::match_t m1, const Matching::match_t m2) {
@@ -1445,123 +1459,107 @@ struct greater_than_zero {
 
 void
 VocTree::cudaQuery(Mat &descriptors, int *limit) {
-        //cout << "descriptors rows : " << descriptors.rows << endl;
 
-        //nvtxRangePush("__TEST__");
-        
-        size_t descriptorsSize = descriptors.rows * 128 * 4; // Each row is a bin of 128 CV_32F
-        int descRows = descriptors.rows;
-        float *descPtr = descriptors.ptr<float>(0);
-        float *cudaDescriptors;
-        cudaMallocManaged(&cudaDescriptors, descriptorsSize);
-        cudaMemcpy(cudaDescriptors, descPtr, descriptorsSize, cudaMemcpyHostToDevice);
+    float queryBoFSum = 0;
+    memset(_queryBoF, 0, _usedNodes * sizeof(*_queryBoF));
 
-        //testDescriptorEquality(descriptors, cudaDescriptors);
+    for (int i = 0; i < descriptors.rows; i++) {
 
-        cudaMemset(_cudaQ, 0, _usedNodes * sizeof(*_cudaQ));
+        Mat qDescr = descriptors.row(i);
 
-        dim3 numDescriptors(descRows);
-        dim3 numThreads(THREADS_PER_BLOCK);
+        cudaFindPath(qDescr, &queryBoFSum);
 
-        //cout << "Block dimensions : " << numBlocks.x << ", " << numBlocks.y << endl;
-        //cout << "Thread dimensions : " << numThreads.x << ", " << numThreads.y << endl;
+    }
 
-        float *sums;
-        size_t sumsSize = descRows * sizeof(*sums);
-        cudaMallocManaged(&sums, sumsSize);
+    //Now normalize q vector
+    queryBoFSum = 1 / queryBoFSum;
+    for (unsigned int i = 0; i < _usedNodes; i++) {
 
-        //Call a kernel that traverses the descriptors
-        traverseDescriptors<<<numDescriptors, numThreads>>>(cudaDescriptors, _cudaCenters, _cudaIndex, _cudaIndexLeaves, _cudaWeights, _cudaQ, sums, _centersCols, _k, _h);
-        cudaDeviceSynchronize();
 
-        float sum = thrust::reduce(thrust::device, sums, sums + descRows);
-        //cout << "The sum from GPU calc (using thrust): " << sum << endl; 
+        //q[i] = sqrt( q[i] / sum ); // Hellinger Kernel?
+        _queryBoF[i] *= queryBoFSum; // L1
+        //q[i] /= sum*sum; // L2
 
-        int qNumBlocks = _usedNodes / THREADS_PER_BLOCK;
 
-        if (_usedNodes % THREADS_PER_BLOCK) {
-            qNumBlocks++;
-        }
+    }
 
-        dim3 qBlocks(qNumBlocks);
-        dim3 qThreads(THREADS_PER_BLOCK);
+    //cout << "result.size(): " << result.size() << endl;
 
-        normalizeQVector<<<qBlocks, qThreads>>>(_cudaQ, 1 / sum, _usedNodes);
+    //cout << "result.size() after resize: " << result.size() << endl;
 
-        cudaDeviceSynchronize();
+    //for (int m = 0; m < _dbSize; m++) {
+    //	//cout << "setting score for " << m << endl;
+    //	Matching& match = result.at( m );
+    //	DBElem elem = _catalog.get(m);
+    //	match.id = elem.id;
+    //	match.score = 2;
+    //}
 
-        /*
-        int qGreaterThanZeroCount = thrust::count_if(thrust::device, q, q + _usedNodes, greater_than_zero());
+    thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, RESULT_INIT_VALUE);
 
-        float *qGreaterThanZero;
-        cudaMallocManaged(&qGreaterThanZero, qGreaterThanZeroCount * sizeof(*qGreaterThanZero));
+    for (unsigned int idxNode = 1; idxNode < _usedNodes; idxNode++) {
 
-        thrust::copy_if(thrust::device, q, q + _usedNodes, qGreaterThanZero, greater_than_zero());
-        */
+        float qi = _queryBoF[idxNode];
+        if (qi > 0) {
 
-        //TODO - load in unified memory when voctree is created
-        //cudaMallocManaged(cudaResult, _dbSize * sizeof(Matching::match_t));
+            //vector<DComponent> &comps = _dVectors.at(idxNode);
+            //thrust::copy(thrust::host, comps.begin(), comps.end(), _cudaDVector);
 
-        Matching::match_t init = {
-            .score = 2,
-            .fileId = -1
-        };
+            // get dVectors offets from unified memory
+            uint32_t dVectorOffset = _cudadVectorOffsets[idxNode-1].offset;
+            uint32_t dVectorNumElems = _cudadVectorOffsets[idxNode-1].numElements;
 
-        thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, init);
-        
-        for (unsigned int idxNode = 0; idxNode < _usedNodes; idxNode++) {
             
-            float qi = _cudaQ[idxNode];
-            if (qi > 0) {
-
-                vector<DComponent> &comps = _dVectors.at(idxNode);
-
-                thrust::copy(thrust::host, comps.begin(), comps.end(), _cudaDVector);
-                
-                int dVectorNumBlocks = comps.size() / 32;
-                if (comps.size() % 32) {
-                    dVectorNumBlocks++;
-                }
-
-                dim3 dVectorBlocks(dVectorNumBlocks);
-                dim3 dVectorThreads(THREADS_PER_BLOCK);
-
-                calculateMatchScore<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector, qi, comps.size());
-                cudaDeviceSynchronize();
-
+            int dVectorNumBlocks = dVectorNumElems / 32;
+            if (dVectorNumElems % 32) {
+                dVectorNumBlocks++;
             }
-        }
 
-        sort(_cudaResult, _cudaResult + _dbSize, &compareMatch);
-        
-        /*
-        for (int i = 0; i < *limit; i++) {
-            cout << "result : " << _cudaResult[i].score << ", " << _cudaResult[i].fileId << endl;
+            dim3 dVectorBlocks(dVectorNumBlocks);
+            dim3 dVectorThreads(THREADS_PER_BLOCK);
+
+            // TODO - launch kernel at the same time as normalization
+            calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector + dVectorOffset, qi, dVectorNumElems);
+            cudaDeviceSynchronize();
+
         }
-        */
+    }
+
+    //cout << "comps.size() over 15: " << compsOverThresCount << endl;
+
+
+    //Now, sort the matching vector from highest to lowest score
+    //int limit = 100;
+    //	Ptr< vector<Matching> > res = new vector<Matching>( min(_dbSize, limit); );
+    //	partial_sort_copy(result.begin(), result.end(), res->begin(), res->end());
+
+    
+    sort(_cudaResult, _cudaResult + _dbSize, &compareMatch);
         
+    /*
+    for (int i = 0; i < *limit; i++) {
+        cout << "result : " << _cudaResult[i].score << ", " << _cudaResult[i].fileId << endl;
+    }
+    */
+    
+
         //TODO - shrink the results
-        float zeroEps = 1e-03;
-        for (unsigned int i = 0; i < *limit; i++) {
-            if (_cudaResult[i].score < zeroEps) {
-                _cudaResult[i].score = 0;
-            } else if (_cudaResult[i].fileId == -1) {
-                (*limit)--;
-            }
+    float zeroEps = 1e-03;
+    for (unsigned int i = 0; i < *limit; i++) {
+        if (_cudaResult[i].score < zeroEps) {
+            _cudaResult[i].score = 0;
+        } else if (_cudaResult[i].fileId == -1) {
+            (*limit)--;
         }
+    }
 
-        cudaFree(cudaDescriptors);
-        cudaFree(sums);
+
     
 }
 
 
 void
 VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
-
-    //cout << " --- New call to VocTree::query() --- " << endl << endl;
-
-    //nvtxRangePush("__TEST__");
 
     vector<float> q(_usedNodes, 0);
     double sum = 0;
@@ -1572,55 +1570,27 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     string filename = "norms.txt";
     ofstream debugFile;
     
+    /*
     debugFile.open(filename);
     if (!debugFile)
         cerr << filename << " could not be opened." << endl;
 
     int debug = 1;
-
-    // TODO - port to CUDA
+    */
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
 
-        /*
-        if (i == 0) {
-            cout << "Printing next last descriptor on the CPU" << endl;
-            for (int j = 0; j < 128; j++) {
-                cout << qDescr.at<float>(j) << " ";
-            }
-            cout << endl;
-        }
-        */
-        if (i > 0) {
-            debug = 0;
-        }
-
-        //list<int> path = findPath(qDescr);
-        list<int> path = debugFindPath(qDescr, debugFile, debug);
+        list<int> path = findPath(qDescr);
+        //list<int> path = debugFindPath(qDescr, debugFile, debug);
 
         //cout << "\t\t\tpath.size() : " << path.size() << endl;
 
         // computes qi = ni * wi (see paper 4.1)
-        list<int>::iterator it = path.begin(); //TODO - inspect what this is
+        list<int>::iterator it = path.begin();
         for (; it != path.end(); it++) {
 
-            /*
-            if (i == 0) {
-                cout << "Path in orig query: ";
-            }
-            */
-            
-
             int idNode = (*it);
-
-            /*
-            if (i == 0) {
-                cout << "\t" << idNode << endl;
-            }
-            */
-            
-
             int idxNode = _index[idNode];
 
             float weight = _weights.at<float>(idxNode);
@@ -1636,10 +1606,6 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         }
 
     }
-
-    //nvtxRangePop();
-
-     //cout << "\t\tq.size():" << q.size() << endl;
 
     cout << "The sum from CPU calc : " << sum << endl;
 
@@ -1676,14 +1642,6 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
         if (qi > 0) {
 
             vector<DComponent> &comps = _dVectors.at(idxNode);
-
-            /*
-            if (prevCompSize != comps.size()) {
-                prevCompSize = comps.size();
-                cout << "Found new comps.size(): " << comps.size() << endl;
-
-            }
-            */
             
             for (unsigned int pos = 0; pos < comps.size(); pos++) {
 
@@ -1845,46 +1803,6 @@ void VocTree::storeVectors(string &fileName) {
 }
 
 void
-VocTree::loadVectorsIntoUnifiedMem(string &filename) {
-
-    /*
-    FILE *pFile = fopen(filename.c_str(), "rb");
-
-    int rows = _usedNodes;
-
-    cudaMallocManaged(&_cudaDVectorsLengths, _usedNodes * 3 * sizeof(int));
-    //cudaMallocManaged()
-
-    int elemSize = 4;
-    int bufferLen = 16 * MEGA;
-    void *pBuffer = malloc(bufferLen);
-    if (pBuffer == NULL) {
-        fclose(pFile);
-        cerr << "can't allocate memory" << endl;
-        exit(-1);
-    }
-    int *pInt = (int *) pBuffer;
-    float *pFloat = (float *) pBuffer;
-    long read;
-
-    while ((read = fread(pBuffer, 1, bufferLen, pFile)) > 0) {
-
-        int cursor = 0;
-
-
-
-
-
-
-    }
-    
-
-    */
-    
-
-}
-
-void
 VocTree::loadVectors(string &fileName) {
 
     FILE *pFile = fopen(fileName.c_str(), "rb");
@@ -1913,8 +1831,13 @@ VocTree::loadVectors(string &fileName) {
     int size;
     long read;
 
-    int longestDVector = -1;
+    int longestDVector = -1; // Not needed in current develop idea
     _dVectorsSize = 0;
+
+    // The root node is not included because the weight is always zero
+    cudaMallocManaged(&_cudadVectorOffsets, (_usedNodes - 1) * sizeof(dVectorOffset_t));
+    unsigned int offsIdx = 0;
+    int prevSize = 0;
 
     while ((read = fread(pBuffer, 1, bufferLen, pFile)) > 0) {
 
@@ -1929,9 +1852,17 @@ VocTree::loadVectors(string &fileName) {
                 size = pInt[cursor++];
                 pComps->resize(size);
 
+                if (idx > 0) {
+                    _cudadVectorOffsets[offsIdx].offset = prevSize;
+                    _cudadVectorOffsets[offsIdx].numElements = size;
+                    prevSize += size;
+                    offsIdx++;
+                }
+
                 _dVectorsSize += size;
 
-                if (size > longestDVector) {
+                // Maybe not needed soon
+                if ( size > longestDVector) {
                     longestDVector = size;
                 }
 
@@ -1960,9 +1891,55 @@ VocTree::loadVectors(string &fileName) {
 
     }
 
-    // cudaMalloc for the longest dVector size
-    cout << "The longest DVector " << longestDVector << endl;
-    cudaMallocManaged(&_cudaDVector, longestDVector * sizeof(DComponent));
+    // subtract _dbSize because the weight of the root node is always zero
+    // and the length of the root node's dVector is _dbSize as every image
+    // traverses through the root node
+    cudaMallocManaged(&_cudaDVector, (_dVectorsSize * sizeof(DComponent)) - _dbSize);
+
+    int cursor = 0;
+    for (unsigned int i = 1; i < _usedNodes; i++) {
+
+        vector<DComponent> &comps = _dVectors.at(i);
+
+        cudaMemcpy(_cudaDVector + cursor, comps.data(), comps.size() * sizeof(DComponent), cudaMemcpyHostToDevice);
+
+        cursor += comps.size();
+    }
+
+    /*
+    // Iterate through offsets and test equality
+    for (unsigned int i = 0, idxNode = 1; i < _usedNodes - 1; i++, idxNode++) {
+        vector<DComponent> &comps = _dVectors.at(idxNode);
+
+        if (_cudadVectorOffsets[i].numElements != comps.size()) {
+            cout << "Error, unequal sizes in cuda and host dvector sizes at index " << i << endl;
+            break;
+        }
+        
+        
+        int cursor = _cudadVectorOffsets[i].offset;
+        int endCursor = cursor + _cudadVectorOffsets[i].numElements;
+        cout << "node i " << i << ", comps.size()" << comps.size() << endl;
+        
+        for (unsigned int pos = 0; pos < comps.size() && cursor + pos < endCursor; pos++) {
+            DComponent &dc = comps.at(pos);
+
+            float actualValue = _cudaDVector[cursor + pos].value;
+            int actualFile = _cudaDVector[cursor + pos].idFile;
+
+            if (actualValue != dc.value) {
+                cout << "_dVector error in value at node " << i << ", pos " << pos << ", cursor: " << cursor << ", actual: " << actualValue << ", expected: " << dc.value <<  "test" <<  _cudaDVector[cursor + pos - 1].value <<  endl;
+                break;
+            } else if (actualFile != dc.idFile) {
+                cout << "_dVector error in file at node " << i << ", pos " << pos << endl; 
+                break;
+            }
+
+        }
+        
+    }
+    cout << "Test dVectors unified mem and cpu mem success." << endl;
+    */
 
     free(pBuffer);
     fclose(pFile);

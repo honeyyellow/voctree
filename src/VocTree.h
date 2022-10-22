@@ -50,7 +50,6 @@ public:
             string &dbPath,
             bool reuseCenters,
             int useNorm
-
     );
 
     /**
@@ -74,6 +73,7 @@ public:
     void query(Mat &queryDescrs,
                vector<Matching> &result,
                int limit);
+    
     
     /**
      * Same as function above ported to the GPU.
@@ -185,7 +185,7 @@ private:
 
     float *_cudaWeights;
 
-    float *_cudaQ;
+    float *_queryBoF;
 
     Matching::match_t *_cudaResult;
 
@@ -229,6 +229,14 @@ private:
 
     vector<vector<DComponent> > _dVectors;
 
+    typedef struct dVectorOffset {
+        uint32_t offset;
+        uint32_t numElements;
+    } dVectorOffset_t;
+
+    // Stores the offset and the number of elements
+    // of the dVectors stored in the nodes
+    dVectorOffset_t *_cudadVectorOffsets;
     // Set to the longest _dVector at VocTree start
     // when the _dVectors are read into memory from file
     DComponent *_cudaDVector;
@@ -258,7 +266,7 @@ private:
     /**
     * Same as function above ported to GPU
     */
-    list<int> cudaFindPath(float *queryDescr);
+    void cudaFindPath(Mat &descriptor, float *queryBoFSum);
 
     /**
     * Same as function above running on CPU printing norm values to file
