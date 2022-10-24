@@ -146,7 +146,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
     fileQuery += query;
 
     //int limit = 6; //result.size() > 10 ? 10 : result.size();
-    int limit = 16; //result.size() > 10 ? 10 : result.size();
+    int limit = 50; //result.size() > 10 ? 10 : result.size();
 
     //vector<Matching> result;
 

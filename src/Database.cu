@@ -1185,7 +1185,7 @@ Database::query(string &fileName,
                 vector<KeyPoint> &qKeypoints,
                 Mat &qDescriptors) {
 
-    cout << "query: " << fileName << endl;
+    //cout << "query: " << fileName << endl;
 
     Mat img = readResource(fileName);
 
@@ -1194,11 +1194,13 @@ Database::query(string &fileName,
         return;
     }
 
-    cout << "extracting features..." << endl;
+    //cout << "extracting features..." << endl;
+    nvtxRangePush("__PopSift_descriptor_extraction_range__");
     if (!extractFeatures(img, qKeypoints, qDescriptors)) {
         cerr << fileName << " can not be processed" << endl;
         return;
     }
+    nvtxRangePop();
 
     if (qDescriptors.rows == 0) {
         cerr << "error processing (no descriptors) " << endl;

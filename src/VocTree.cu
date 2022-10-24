@@ -1460,6 +1460,7 @@ struct greater_than_zero {
 void
 VocTree::cudaQuery(Mat &descriptors, int *limit) {
 
+    nvtxRangePush("__Compute_BoF_vector_range__");
     float queryBoFSum = 0;
     memset(_queryBoF, 0, _usedNodes * sizeof(*_queryBoF));
 
@@ -1470,18 +1471,43 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
         cudaFindPath(qDescr, &queryBoFSum);
 
     }
+    nvtxRangePop();
 
     //Now normalize q vector
+    nvtxRangePush("__Normalize_BoF_vector_compute_score_range__");
+    thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, RESULT_INIT_VALUE);
     queryBoFSum = 1 / queryBoFSum;
     for (unsigned int i = 0; i < _usedNodes; i++) {
 
-
-        //q[i] = sqrt( q[i] / sum ); // Hellinger Kernel?
         _queryBoF[i] *= queryBoFSum; // L1
-        //q[i] /= sum*sum; // L2
 
+        if (_queryBoF[i] > 0) {
+
+            //vector<DComponent> &comps = _dVectors.at(idxNode);
+            //thrust::copy(thrust::host, comps.begin(), comps.end(), _cudaDVector);
+
+            // get dVectors offets from unified memory
+            uint32_t dVectorOffset = _cudadVectorOffsets[i-1].offset;
+            uint32_t dVectorNumElems = _cudadVectorOffsets[i-1].numElements;
+
+            
+            int dVectorNumBlocks = dVectorNumElems / 32;
+            if (dVectorNumElems % 32) {
+                dVectorNumBlocks++;
+            }
+
+            dim3 dVectorBlocks(dVectorNumBlocks);
+            dim3 dVectorThreads(THREADS_PER_BLOCK);
+
+            cudaDeviceSynchronize();
+            calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector + dVectorOffset, _queryBoF[i], dVectorNumElems);
+
+        }
 
     }
+    cudaDeviceSynchronize();
+    nvtxRangePop();
+
 
     //cout << "result.size(): " << result.size() << endl;
 
@@ -1495,36 +1521,6 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
     //	match.score = 2;
     //}
 
-    thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, RESULT_INIT_VALUE);
-
-    for (unsigned int idxNode = 1; idxNode < _usedNodes; idxNode++) {
-
-        float qi = _queryBoF[idxNode];
-        if (qi > 0) {
-
-            //vector<DComponent> &comps = _dVectors.at(idxNode);
-            //thrust::copy(thrust::host, comps.begin(), comps.end(), _cudaDVector);
-
-            // get dVectors offets from unified memory
-            uint32_t dVectorOffset = _cudadVectorOffsets[idxNode-1].offset;
-            uint32_t dVectorNumElems = _cudadVectorOffsets[idxNode-1].numElements;
-
-            
-            int dVectorNumBlocks = dVectorNumElems / 32;
-            if (dVectorNumElems % 32) {
-                dVectorNumBlocks++;
-            }
-
-            dim3 dVectorBlocks(dVectorNumBlocks);
-            dim3 dVectorThreads(THREADS_PER_BLOCK);
-
-            // TODO - launch kernel at the same time as normalization
-            calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector + dVectorOffset, qi, dVectorNumElems);
-            cudaDeviceSynchronize();
-
-        }
-    }
-
     //cout << "comps.size() over 15: " << compsOverThresCount << endl;
 
 
@@ -1533,8 +1529,9 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
     //	Ptr< vector<Matching> > res = new vector<Matching>( min(_dbSize, limit); );
     //	partial_sort_copy(result.begin(), result.end(), res->begin(), res->end());
 
-    
-    sort(_cudaResult, _cudaResult + _dbSize, &compareMatch);
+    nvtxRangePush("__Partial_sort_range__");
+    partial_sort(_cudaResult, _cudaResult + *limit, _cudaResult + _dbSize, &compareMatch);
+    nvtxRangePop();
         
     /*
     for (int i = 0; i < *limit; i++) {
