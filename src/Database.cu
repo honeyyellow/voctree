@@ -1187,12 +1187,14 @@ Database::query(string &fileName,
 
     //cout << "query: " << fileName << endl;
 
+    nvtxRangePush("__Read_image_range__");
     Mat img = readResource(fileName);
 
     if (!img.data) {
         cerr << fileName << " can not be read" << endl;
         return;
     }
+    nvtxRangePop();
 
     //cout << "extracting features..." << endl;
     nvtxRangePush("__PopSift_descriptor_extraction_range__");

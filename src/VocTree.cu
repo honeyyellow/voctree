@@ -1460,6 +1460,8 @@ struct greater_than_zero {
 void
 VocTree::cudaQuery(Mat &descriptors, int *limit) {
 
+    thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, RESULT_INIT_VALUE);
+
     nvtxRangePush("__Compute_BoF_vector_range__");
     float queryBoFSum = 0;
     memset(_queryBoF, 0, _usedNodes * sizeof(*_queryBoF));
@@ -1475,7 +1477,6 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
 
     //Now normalize q vector
     nvtxRangePush("__Normalize_BoF_vector_compute_score_range__");
-    thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, RESULT_INIT_VALUE);
     queryBoFSum = 1 / queryBoFSum;
     for (unsigned int i = 0; i < _usedNodes; i++) {
 
@@ -1499,7 +1500,7 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
             dim3 dVectorBlocks(dVectorNumBlocks);
             dim3 dVectorThreads(THREADS_PER_BLOCK);
 
-            cudaDeviceSynchronize();
+            //cudaDeviceSynchronize();
             calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector + dVectorOffset, _queryBoF[i], dVectorNumElems);
 
         }
