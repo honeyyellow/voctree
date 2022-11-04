@@ -6,7 +6,6 @@
 // version. You should have received a copy of this license along
 // this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 #ifndef VOCTREE_H_
 #define VOCTREE_H_
 
@@ -20,7 +19,6 @@
 #include "Catalog.h"
 #include "FileManager.h"
 
-
 using namespace cv;
 using namespace std;
 
@@ -28,10 +26,12 @@ using namespace std;
 #define THREADS_PER_BLOCK 32
 #define FULL_MASK 0xffffffff
 
-class VocTree {
+#define NSTREAMS 4
+
+class VocTree
+{
 
 public:
-
     /**
      *  Vocabulary tree constructor.
      *  @param  k branch factor.
@@ -44,13 +44,12 @@ public:
      */
 
     VocTree(
-            int k,
-            int h,
-            Catalog<DBElem> &images,
-            string &dbPath,
-            bool reuseCenters,
-            int useNorm
-    );
+        int k,
+        int h,
+        Catalog<DBElem> &images,
+        string &dbPath,
+        bool reuseCenters,
+        int useNorm);
 
     /**
      * Vocabulary tree constructor.
@@ -73,13 +72,12 @@ public:
     void query(Mat &queryDescrs,
                vector<Matching> &result,
                int limit);
-    
-    
+
     /**
      * Same as function above ported to the GPU.
      */
     void cudaQuery(Mat &queryDescrs,
-               int *limit);
+                   int *limit);
 
     /**
      * updates the vocabulary tree with new images
@@ -91,7 +89,6 @@ public:
      * saves the vocabulary tree to disk
      */
     void store();
-
 
     /**
      * displays vocabulary statistics info
@@ -106,16 +103,14 @@ public:
     // used to store the d vectors
     // declared public to be accessible
     // by thrust library
-    struct DComponent {
+    struct DComponent
+    {
         int idFile;
         float value;
-        //float q; // Add this for kernel result computation
+        // float q; // Add this for kernel result computation
     };
 
-
-
 private:
-
     // Used in destructor to decide if memory must be deallocated
     // based on how VocTree is initialized
     int _gpuMemoryAllocate;
@@ -178,7 +173,7 @@ private:
     // _centers: Mat in R^(_usedNodes x D), stores the nodes centers (or visual words)
     // _weights: Mat in R^_usedNodes, stores the nodes weights
     Mat _centers; // type is //TODO - add type here
-    Mat _weights; // type is 
+    Mat _weights; // type is
 
     int _centersCols;
     float *_cudaCenters;
@@ -187,10 +182,20 @@ private:
 
     float *_queryBoF;
 
-    Matching::match_t *_cudaResult;
+    //Matching::match_t *_cudaResult;
+    Matching::match_t *_cudaResult0;
+    Matching::match_t *_cudaResult1;
+    Matching::match_t *_cudaResult2;
+    Matching::match_t *_cudaResult3;
+
+    Matching::match_t *_cudaResultPtrs[NSTREAMS];
+
+    int _nStreams;
+    cudaStream_t _stream[NSTREAMS];
 
     // for virtual inverted indexes (IIF: Inverted Index File)
-    struct IIFEntry {
+    struct IIFEntry
+    {
         int idFile;
         short featCount;
     };
@@ -199,7 +204,7 @@ private:
     // 	-are stored only on the leafs
     //	-have the ids of the images
     //	-can have duplicates
-    vector<vector<int> > _invIdx;
+    vector<vector<int>> _invIdx;
 
     /**
      * @param idNode node index to test
@@ -227,9 +232,10 @@ private:
      */
     int idChild(int idNode, int numChild);
 
-    vector<vector<DComponent> > _dVectors;
+    vector<vector<DComponent>> _dVectors;
 
-    typedef struct dVectorOffset {
+    typedef struct dVectorOffset
+    {
         uint32_t offset;
         uint32_t numElements;
     } dVectorOffset_t;
@@ -240,9 +246,9 @@ private:
     // Set to the longest _dVector at VocTree start
     // when the _dVectors are read into memory from file
     DComponent *_cudaDVector;
-    
+
     /**
-     * 
+     *
      * Test equality of _dVectors lengths stored in cuda array
      * and acutal length in dVectors
      */
@@ -264,15 +270,14 @@ private:
     list<int> findPath(Mat &queryDescr);
 
     /**
-    * Same as function above ported to GPU
-    */
+     * Same as function above ported to GPU
+     */
     void cudaFindPath(Mat &descriptor, float *queryBoFSum);
 
     /**
-    * Same as function above running on CPU printing norm values to file
-    */
-    list<int> debugFindPath(Mat &descriptor, ofstream &file, int debug); 
-
+     * Same as function above running on CPU printing norm values to file
+     */
+    list<int> debugFindPath(Mat &descriptor, ofstream &file, int debug);
 
     /**
      * Stores vocabulary tree internal representation data information to disk
@@ -301,7 +306,6 @@ private:
      * @param prefix naming the input files
      */
     void loadNodes(string &prefix);
-
 
     /**
      * Stores nodes weights data to disk
@@ -352,7 +356,6 @@ private:
      */
     void loadVectorsIntoUnifiedMem(string &filename);
 
-
     /**
      * Given an input file (containing a Mat with descriptors), it builds the node idNode, on the level level
      * @param idNode id node to be create (for example 0 is the root node)
@@ -363,9 +366,7 @@ private:
     void buildNodeFromFile(int idNode,
                            int level,
                            string &descriptorsFile,
-                           int rows
-    );
-
+                           int rows);
 
     /**
      * Given an input Mat with descriptors, it builds the node idNode, on the level level
@@ -375,8 +376,7 @@ private:
      */
     void buildNodeFromMat(int idNode,
                           int level,
-                          Mat &descriptors
-    );
+                          Mat &descriptors);
 
     /**
      * Auxiliar generalization function used to build nodes from descriptors
@@ -405,12 +405,10 @@ private:
      * @param clusters vector containing the name of the files with the elements of the output clusters
      */
     void cluster(
-            int K,
-            string &inputFile,
-            Mat &centers,
-            vector<string> &clusters
-    );
-
+        int K,
+        string &inputFile,
+        Mat &centers,
+        vector<string> &clusters);
 
     /**
      * Given a matrix with descriptors, performs K-clustering
@@ -422,12 +420,10 @@ private:
      * @param clusters vector with K matrices with the elements of the output clusters
      */
     void cluster(
-            int K,
-            Mat &descs,
-            Mat &centers,
-            vector<Mat> &clusters
-    );
-
+        int K,
+        Mat &descs,
+        Mat &centers,
+        vector<Mat> &clusters);
 
     /**
      * Given an input file containing descriptores, it creates the node idNode, at level level for that descriptors.
@@ -466,7 +462,7 @@ private:
 
     /**
      * builds all the nodes of the Vocabulary Tree
-    */
+     */
     void buildNodes();
 
     /**
@@ -480,18 +476,16 @@ private:
     int getStartingFeatureRow(Catalog<DBElem> &catalog, int startImage);
 
     /**
-     * 
-     * 
+     *
+     *
      */
     void printdVectorInfo();
 
     /**
-     * 
-     * 
+     *
+     *
      */
     void printInvIndexInfo();
-
-
 };
 
 #endif /* VOCTREE_H_ */

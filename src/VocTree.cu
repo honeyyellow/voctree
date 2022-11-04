@@ -32,6 +32,11 @@ const Matching::match_t RESULT_INIT_VALUE = {
     .fileId = -1
 };
 
+const Matching::match_t RESULT_0_VALUE = {
+    .score = 0,
+    .fileId = -1
+};
+
 // To retrieve type of opencv Mat object
 // https://stackoverflow.com/questions/10167534/how-to-find-out-what-type-of-a-mat-object-is-with-mattype-in-opencv
 string type2str(int type) {
@@ -988,12 +993,32 @@ VocTree::VocTree(string &path) {
     // cudaMalloc for query BoF vector
     _queryBoF = (float *) malloc(_usedNodes * sizeof(*_queryBoF));
 
+    _nStreams = NSTREAMS;
+    for (int i = 0; i < _nStreams; i++) {
+        cudaStreamCreate(&_stream[i]); 
+    }
+
     // cudaMalloc for image match score calculation
-    cudaMallocManaged(&_cudaResult, _dbSize * sizeof(*_cudaResult));
+    cudaMallocManaged(&_cudaResult0, _nStreams * _dbSize * sizeof(*_cudaResult0));
+    cudaMallocManaged(&_cudaResult1, _nStreams * _dbSize * sizeof(*_cudaResult1));
+    cudaMallocManaged(&_cudaResult2, _nStreams * _dbSize * sizeof(*_cudaResult2));
+    cudaMallocManaged(&_cudaResult3, _nStreams * _dbSize * sizeof(*_cudaResult3));
+
+    _cudaResultPtrs[0] = _cudaResult0;
+    _cudaResultPtrs[1] = _cudaResult1;
+    _cudaResultPtrs[2] = _cudaResult2;
+    _cudaResultPtrs[3] = _cudaResult3;
+
+    cudaStreamAttachMemAsync(_stream[0], _cudaResult0);
+    cudaStreamAttachMemAsync(_stream[1], _cudaResult1);
+    cudaStreamAttachMemAsync(_stream[2], _cudaResult2);
+    cudaStreamAttachMemAsync(_stream[3], _cudaResult3);
+
+    cudaDeviceSynchronize();
 
     //TODO - put in function
     std::cout << "Query BoF vector size : " << _usedNodes * sizeof(*_queryBoF) << endl;
-    std::cout << "_cudaResult size : " <<  _dbSize * sizeof(*_cudaResult) << endl;
+    std::cout << "_cudaResultPtrs size : " <<  _dbSize * sizeof(*_cudaResult0) << endl;
 
     std::cout << "voctree loaded" << endl;
     std::cout << "_usedNodes : " << _usedNodes << endl;
@@ -1011,18 +1036,25 @@ VocTree::VocTree(string &path) {
 VocTree::~VocTree() {
     cout << "voctree delete" << endl;
 
-    /*
+    
     // Deallocate memory spaces
     if (_gpuMemoryAllocate) {
-        cudaFree(_cudaIndex);
-        cudaFree(_cudaIndexLeaves);
-        cudaFree(_cudaCenters);
-        cudaFree(_cudaWeights);
-        cudaFree(_queryBoF);
-        cudaFree(_cudaResult);
+        //cudaFree(_cudaIndex);
+        //cudaFree(_cudaIndexLeaves);
+        //cudaFree(_cudaCenters);
+        //cudaFree(_cudaWeights);
+        //cudaFree(_queryBoF);
+        cudaFree(_cudaResult0);
+        cudaFree(_cudaResult1);
+        cudaFree(_cudaResult2);
+        cudaFree(_cudaResult3);
         cudaFree(_cudaDVector);
+
+        for (int i = 0; i < _nStreams; i++) {
+            cudaStreamDestroy(_stream[i]); 
+        }
     }
-    */
+    
 
 }
 
@@ -1191,13 +1223,16 @@ VocTree::cudaFindPath(Mat &descriptor, float *queryBoFSum) {
             _queryBoF[idxNode] += weight;
             *queryBoFSum += weight;
     
-            // Fill the result for this node the first
-            // the weight is added to query BoF
             /*
+            // Fill the result for this node  the weight is added to query BoF 
             if (_queryBoF[idxNode] == weight) {
                 // Is this asynchronous? Do I need to use a kernel launch to achieve a asynchronous launch?
                 // Use streams here?
-                thrust::fill(thrust::device, _cudaResult + (idxNode * _dbSize), _cudaResult + (idxNode * _dbSize) + _dbSize, RESULT_INIT_VALUE);
+                thrust::fill(thrust::device, _cudaResultPtrs
+            
+            + (idxNode * _dbSize), _cudaResultPtrs
+        
+     + (idxNode * _dbSize) + _dbSize, RESULT_INIT_VALUE);
             }
             */
 
@@ -1376,25 +1411,6 @@ __global__ void normalizeQVector(float *q, float sum, int N) {
 
 }
 
-__global__ void traverseDVectorSizes(float *q, int *cudaDVectorsLengths, int *selectedLenghts, int N) {
-
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (tid < N) {
-
-        if (q[tid] > 0) {
-
-            selectedLenghts[tid] = cudaDVectorsLengths[tid];
-
-        } else {
-
-            selectedLenghts[tid] = 0;
-
-        }
-    }
-
-}
-
 __global__ void calculateMatchScore(Matching::match_t *cudaResult, VocTree::DComponent *comps, float qi, int N) {
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1444,6 +1460,22 @@ __global__ void calculateMatchScoreNew(Matching::match_t *cudaResult, VocTree::D
 
 }
 
+__global__ void collectResults(Matching::match_t *cudaResult0, Matching::match_t *cudaResult1, Matching::match_t *cudaResult2, Matching::match_t *cudaResult3, int N) {
+
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < N) {
+
+        cudaResult2[tid].score += cudaResult3[tid].score;
+        cudaResult1[tid].score += cudaResult2[tid].score;
+        cudaResult0[tid].score += cudaResult1[tid].score;
+
+    }
+
+
+
+}
+
 
 
 bool compareMatch(const Matching::match_t m1, const Matching::match_t m2) {
@@ -1460,6 +1492,14 @@ struct greater_than_zero {
 void
 VocTree::cudaQuery(Mat &descriptors, int *limit) {
 
+
+    nvtxRangePush("__Thrust_fill_range__");
+    thrust::fill(thrust::cuda::par.on(_stream[0]), _cudaResult0, _cudaResult0 + _dbSize, RESULT_INIT_VALUE);
+    thrust::fill(thrust::cuda::par.on(_stream[1]), _cudaResult1, _cudaResult1 + _dbSize, RESULT_0_VALUE);
+    thrust::fill(thrust::cuda::par.on(_stream[2]), _cudaResult2, _cudaResult2 + _dbSize, RESULT_0_VALUE);
+    thrust::fill(thrust::cuda::par.on(_stream[3]), _cudaResult3, _cudaResult3 + _dbSize, RESULT_0_VALUE);
+    nvtxRangePop();
+
     nvtxRangePush("__Compute_BoF_vector_range__");
     float queryBoFSum = 0;
     memset(_queryBoF, 0, _usedNodes * sizeof(*_queryBoF));
@@ -1475,8 +1515,13 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
 
     //Now normalize q vector
     nvtxRangePush("__Normalize_BoF_vector_compute_score_range__");
-    thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, RESULT_INIT_VALUE);
+    //thrust::fill(thrust::device, _cudaResultPtrs        , _cudaResultPtrs+ _dbSize, RESULT_INIT_VALUE);
     queryBoFSum = 1 / queryBoFSum;
+
+    uint8_t nextStream = 0;
+
+    cudaDeviceSynchronize();
+
     for (unsigned int i = 0; i < _usedNodes; i++) {
 
         _queryBoF[i] *= queryBoFSum; // L1
@@ -1490,6 +1535,8 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
             uint32_t dVectorOffset = _cudadVectorOffsets[i-1].offset;
             uint32_t dVectorNumElems = _cudadVectorOffsets[i-1].numElements;
 
+            //cout << "node " << i << ", dVectornumElems : " << dVectorNumElems << endl;
+
             
             int dVectorNumBlocks = dVectorNumElems / 32;
             if (dVectorNumElems % 32) {
@@ -1499,13 +1546,41 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
             dim3 dVectorBlocks(dVectorNumBlocks);
             dim3 dVectorThreads(THREADS_PER_BLOCK);
 
-            cudaDeviceSynchronize();
-            calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector + dVectorOffset, _queryBoF[i], dVectorNumElems);
+            //cudaDeviceSynchronize();
+            calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads, 0, _stream[nextStream]>>>(_cudaResultPtrs[nextStream], _cudaDVector + dVectorOffset, _queryBoF[i], dVectorNumElems);
+
+            nextStream++;
+            if (nextStream == NSTREAMS) nextStream = 0;
 
         }
 
     }
+    nvtxRangePop();
+    
+    nvtxRangePush("__Collect_scores_range__");
+
+    cudaStreamAttachMemAsync(_stream[0], _cudaResult1);
+    cudaStreamAttachMemAsync(_stream[0], _cudaResult2);
+    cudaStreamAttachMemAsync(_stream[0], _cudaResult3);
+    
+    int collectResultsNumBlocks = _dbSize / 32;
+    if (collectResultsNumBlocks % 32) {
+        collectResultsNumBlocks++;
+    }
+    
+    dim3 collectResultsBlocks(collectResultsNumBlocks);
+    dim3 collectResultsThreads(32);
+    
+    nvtxRangePush("__Collect_scores_dev_sync_1_range__");
     cudaDeviceSynchronize();
+    nvtxRangePop();
+
+    collectResults<<<collectResultsBlocks, collectResultsThreads, 0, _stream[0]>>>(_cudaResult0, _cudaResult1, _cudaResult2, _cudaResult3, _dbSize);
+
+    nvtxRangePush("__Collect_scores_dev_sync_2_range__");
+    cudaDeviceSynchronize();
+    nvtxRangePop();
+
     nvtxRangePop();
 
 
@@ -1530,12 +1605,12 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
     //	partial_sort_copy(result.begin(), result.end(), res->begin(), res->end());
 
     nvtxRangePush("__Partial_sort_range__");
-    partial_sort(_cudaResult, _cudaResult + *limit, _cudaResult + _dbSize, &compareMatch);
+    partial_sort(_cudaResult0, _cudaResult0 + *limit, _cudaResult0 + _dbSize, &compareMatch);
     nvtxRangePop();
         
     /*
     for (int i = 0; i < *limit; i++) {
-        cout << "result : " << _cudaResult[i].score << ", " << _cudaResult[i].fileId << endl;
+        cout << "result : " << _cudaResultPtrs        [i].score << ", " << _cudaResultPtrs[i].fileId << endl;
     }
     */
     
@@ -1543,9 +1618,9 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
         //TODO - shrink the results
     float zeroEps = 1e-03;
     for (unsigned int i = 0; i < *limit; i++) {
-        if (_cudaResult[i].score < zeroEps) {
-            _cudaResult[i].score = 0;
-        } else if (_cudaResult[i].fileId == -1) {
+        if (_cudaResult0[i].score < zeroEps) {
+            _cudaResult0[i].score = 0;
+        } else if (_cudaResult0[i].fileId == -1) {
             (*limit)--;
         }
     }
@@ -2129,6 +2204,6 @@ VocTree::printInvIndexInfo() {
 
 Matching::match_t*
 VocTree::getCudaResult() {
-    return _cudaResult;
+    return _cudaResult0;
 }
 

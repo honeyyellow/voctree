@@ -1187,12 +1187,15 @@ Database::query(string &fileName,
 
     //cout << "query: " << fileName << endl;
 
+    nvtxRangePush("__Read_img_range__");
     Mat img = readResource(fileName);
 
     if (!img.data) {
         cerr << fileName << " can not be read" << endl;
         return;
     }
+    nvtxRangePop();
+
 
     //cout << "extracting features..." << endl;
     nvtxRangePush("__PopSift_descriptor_extraction_range__");
@@ -1206,6 +1209,8 @@ Database::query(string &fileName,
         cerr << "error processing (no descriptors) " << endl;
         return;
     }
+
+    cout << "Descriptor count : " << qDescriptors.rows << endl;
 
     if (_usePCA) {
         cout << "Projecting PCA..." << endl;
