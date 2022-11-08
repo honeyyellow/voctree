@@ -388,6 +388,11 @@ Database::processFiles(bool update, bool forVocabulary) {
 
     FileHelper::listDir(path, dir, true);
 
+    // Loop through 20k to build with 20k images
+    dir.resize(20000);
+
+    cout << "Dir size : " << dir.size() << ", forVocabulary : " << forVocabulary << endl;
+
     for (unsigned int i = 0; i < dir.size(); i++) {
         FileHelper::Entry ent = dir.at(i);
 
@@ -498,8 +503,10 @@ void Database::processInput(bool reuseFeatures, bool forVocabulary) {
         fileKeyps = fileMgr.file(FileManager::VOCABULARY_KEYPOINTS);
         fileDescs = fileMgr.file(FileManager::VOCABULARY_DESCRIPTORS);
 
+        
         ctlg = &_vocCatalog;
         ctlgVid = &_vocVideos;
+
     } else {
 
         fileCatalog = fileMgr.file(FileManager::CATALOG);
@@ -510,7 +517,11 @@ void Database::processInput(bool reuseFeatures, bool forVocabulary) {
         ctlg = &_catalog;
         ctlgVid = &_videos;
 
+        //cout << "Database image catalog size : " << ctlg->size() << endl;
+
     }
+
+
 
     bool canReuseFeatures = reuseFeatures &&
                             FileHelper::exists(fileMethod) &&
@@ -565,6 +576,10 @@ void Database::processInput(bool reuseFeatures, bool forVocabulary) {
 
         cout << "storing catalog..." << endl;
         ctlg->store(fileCatalog);
+
+        ctlg->shrink(20000);
+
+        cout << "Vocabulary image catalog size : " << ctlg->size() << endl;
 
         cout << "storing video catalog..." << endl;
         ctlgVid->store(fileVideos);

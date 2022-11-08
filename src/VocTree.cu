@@ -1529,7 +1529,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     vector<float> q(_usedNodes, 0);
     double sum = 0;
 
-    nvtxRangePush("__Traverse_descriptors_baseline__");
+    nvtxRangePush("__Compute_BoF_vector__");
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
@@ -1623,10 +1623,12 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     }
     */
 
+    nvtxRangePush("__Sort_range__");
     sort(result.begin(), result.end());
     if ((unsigned int) limit < result.size()) {
         result.resize(limit);
     }
+    nvtxRangePop();
 
     /*
     cout << "results from CPU AFTER sort : " << endl;
