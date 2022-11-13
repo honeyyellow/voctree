@@ -17,7 +17,7 @@
 using namespace cv;
 using namespace std;
 
-#define N_IMAGES 500
+#define N_IMAGES 10000
 
 
 Ptr<Database>
