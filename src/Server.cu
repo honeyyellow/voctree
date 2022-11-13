@@ -150,7 +150,7 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     vector<Matching> result;
 
-    nvtxRangePush("__Query_baseline__");
+    nvtxRangePush("__A_Query_baseline__");
     db->query(fileQuery, result, &limit);
     nvtxRangePop();
 

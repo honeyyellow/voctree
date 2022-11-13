@@ -1529,7 +1529,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     vector<float> q(_usedNodes, 0);
     double sum = 0;
 
-    nvtxRangePush("__Compute_BoF_vector__");
+    nvtxRangePush("__B_Compute_BoF_vector__");
     for (int i = 0; i < descriptors.rows; i++) {
 
         Mat qDescr = descriptors.row(i);
@@ -1560,7 +1560,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     nvtxRangePop();
 
     //Now normalize q vector
-    nvtxRangePush("__normalize_q_vector_baseline__");
+    nvtxRangePush("__C_normalize_q_vector_baseline__");
     for (unsigned int i = 0; i < q.size(); i++) {
 
         //q[i] = sqrt( q[i] / sum ); // Hellinger Kernel?
@@ -1582,7 +1582,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     //	match.score = 2;
     //}
 
-    nvtxRangePush("__Calculate_match_score_baseline__");
+    nvtxRangePush("__D_Calculate_match_score_baseline__");
     //cout << "non-zero count:" << _d_vectors.nzCount() << endl;
     for (unsigned int idxNode = 0; idxNode < q.size(); idxNode++) {
         float qi = q[idxNode];
@@ -1623,7 +1623,7 @@ VocTree::query(Mat &descriptors, vector<Matching> &result, int limit) {
     }
     */
 
-    nvtxRangePush("__Sort_range__");
+    nvtxRangePush("__E_Sort_range__");
     sort(result.begin(), result.end());
     if ((unsigned int) limit < result.size()) {
         result.resize(limit);
@@ -1784,6 +1784,11 @@ VocTree::loadVectors(string &fileName) {
 
     _dVectorsSize = 0;
 
+    // File for inverted file length output
+    //ofstream invFileInfo;
+    //invFileInfo.open("invfiles.txt");
+
+
     while ((read = fread(pBuffer, 1, bufferLen, pFile)) > 0) {
 
         assert(read % elemSize == 0);
@@ -1803,6 +1808,13 @@ VocTree::loadVectors(string &fileName) {
                 }
                 */
                 _dVectorsSize += size;
+
+                // write inverted file length to file
+                /*
+                if (_indexLeaves.at(idx) != -1) {
+                    invFileInfo << size << endl;
+                }
+                */
 
 
 
@@ -1830,6 +1842,8 @@ VocTree::loadVectors(string &fileName) {
 
 
     }
+
+    //invFileInfo.close();
 
     //TODO - cudaMalloc for the longest dVector size
     //cout << "The longest DVector " << longestDVector << endl;
