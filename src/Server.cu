@@ -150,9 +150,9 @@ void handleQuery(string query, int sockfd, Ptr<Database> &db) {
 
     //vector<Matching> result;
 
-    nvtxRangePush("__CUDA query__");
+    nvtxRangePush("__A_CUDA query__");
     db->query(fileQuery, &limit);
-    Matching::match_t *cudaResult = db->getCudaResultFromVocTree();
+    VocTree::match_t *cudaResult = db->getCudaResultFromVocTree();
     // Access on host to also time the 
     for (int i = 0; i < limit; i++) {
         float score = cudaResult[i].score;

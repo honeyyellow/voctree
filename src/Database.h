@@ -172,7 +172,7 @@ public:
     /**
      * Same as function above but for cuda query results.
      */
-    vector<Database::ExportInfo> exportCudaResults(Matching::match_t *result, int limit);
+    vector<Database::ExportInfo> exportCudaResults(VocTree::match_t *result, int limit);
 
     /**
      * It loads the specified image,
@@ -219,7 +219,7 @@ public:
     /**
      * @return address of cuda result from VocTree
      */
-    Matching::match_t *getCudaResultFromVocTree();
+    VocTree::match_t *getCudaResultFromVocTree();
 
 private:
 

@@ -27,7 +27,7 @@
 using namespace cv;
 using namespace std;
 
-const Matching::match_t RESULT_INIT_VALUE = {
+const VocTree::match_t RESULT_INIT_VALUE = {
     .score = 2,
     .fileId = -1
 };
@@ -986,13 +986,14 @@ VocTree::VocTree(string &path) {
     loadVectors(fileVectors);
 
     // cudaMalloc for query BoF vector
-    _queryBoF = (float *) malloc(_usedNodes * sizeof(*_queryBoF));
+    //_queryBoF = (float *) malloc(_usedNodes * sizeof(*_queryBoF));
+    _queryBoF.resize(_usedNodes);
 
     // cudaMalloc for image match score calculation
     cudaMallocManaged(&_cudaResult, _dbSize * sizeof(*_cudaResult));
 
     //TODO - put in function
-    std::cout << "Query BoF vector size : " << _usedNodes * sizeof(*_queryBoF) << endl;
+    std::cout << "Query BoF vector size : " << _usedNodes * sizeof(float) << endl;
     std::cout << "_cudaResult size : " <<  _dbSize * sizeof(*_cudaResult) << endl;
 
     std::cout << "voctree loaded" << endl;
@@ -1188,18 +1189,8 @@ VocTree::cudaFindPath(Mat &descriptor, float *queryBoFSum) {
         float weight = _weights.at<float>(idxNode);
 
         if (!isinf(weight)) {
-            _queryBoF[idxNode] += weight;
+            _queryBoF.at(idxNode) += weight;
             *queryBoFSum += weight;
-    
-            // Fill the result for this node the first
-            // the weight is added to query BoF
-            /*
-            if (_queryBoF[idxNode] == weight) {
-                // Is this asynchronous? Do I need to use a kernel launch to achieve a asynchronous launch?
-                // Use streams here?
-                thrust::fill(thrust::device, _cudaResult + (idxNode * _dbSize), _cudaResult + (idxNode * _dbSize) + _dbSize, RESULT_INIT_VALUE);
-            }
-            */
 
         }
 
@@ -1395,7 +1386,7 @@ __global__ void traverseDVectorSizes(float *q, int *cudaDVectorsLengths, int *se
 
 }
 
-__global__ void calculateMatchScore(Matching::match_t *cudaResult, VocTree::DComponent *comps, float qi, int N) {
+__global__ void calculateMatchScore(VocTree::match_t *cudaResult, VocTree::DComponent *comps, float qi, int N) {
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1420,7 +1411,7 @@ __global__ void calculateMatchScore(Matching::match_t *cudaResult, VocTree::DCom
 }
 
 
-__global__ void calculateMatchScoreNew(Matching::match_t *cudaResult, VocTree::DComponent *comps, float qi, int N) {
+__global__ void calculateMatchScoreNew(VocTree::match_t *cudaResult, VocTree::DComponent *comps, float qi, int N) {
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1446,7 +1437,7 @@ __global__ void calculateMatchScoreNew(Matching::match_t *cudaResult, VocTree::D
 
 
 
-bool compareMatch(const Matching::match_t m1, const Matching::match_t m2) {
+bool compareMatch(const VocTree::match_t m1, const VocTree::match_t m2) {
     return m1.score < m2.score;
 }
 
@@ -1462,9 +1453,10 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
 
     thrust::fill(thrust::device, _cudaResult, _cudaResult + _dbSize, RESULT_INIT_VALUE);
 
-    nvtxRangePush("__Compute_BoF_vector_range__");
+    nvtxRangePush("__D_Compute_BoF_vector_range__");
     float queryBoFSum = 0;
-    memset(_queryBoF, 0, _usedNodes * sizeof(*_queryBoF));
+    //memset(_queryBoF, 0, _usedNodes * sizeof(*_queryBoF));
+    fill(_queryBoF.begin(), _queryBoF.end(), 0);
 
     for (int i = 0; i < descriptors.rows; i++) {
 
@@ -1476,20 +1468,20 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
     nvtxRangePop();
 
     //Now normalize q vector
-    nvtxRangePush("__Normalize_BoF_vector_compute_score_range__");
+    nvtxRangePush("__E_Normalize_BoF_vector_compute_score_range__");
     queryBoFSum = 1 / queryBoFSum;
     for (unsigned int i = 0; i < _usedNodes; i++) {
 
-        _queryBoF[i] *= queryBoFSum; // L1
-
-        if (_queryBoF[i] > 0) {
+        _queryBoF.at(i) *= queryBoFSum; // L1
+        float qi = _queryBoF.at(i);
+        if (qi > 0) {
 
             //vector<DComponent> &comps = _dVectors.at(idxNode);
             //thrust::copy(thrust::host, comps.begin(), comps.end(), _cudaDVector);
 
             // get dVectors offets from unified memory
-            uint32_t dVectorOffset = _cudadVectorOffsets[i-1].offset;
-            uint32_t dVectorNumElems = _cudadVectorOffsets[i-1].numElements;
+            uint32_t dVectorOffset = _cudadVectorOffsets.at(i-1).offset;
+            uint32_t dVectorNumElems = _cudadVectorOffsets.at(i-1).numElements;
 
             
             int dVectorNumBlocks = dVectorNumElems / 32;
@@ -1501,7 +1493,7 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
             dim3 dVectorThreads(THREADS_PER_BLOCK);
 
             //cudaDeviceSynchronize();
-            calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector + dVectorOffset, _queryBoF[i], dVectorNumElems);
+            calculateMatchScoreNew<<<dVectorBlocks, dVectorThreads>>>(_cudaResult, _cudaDVector + dVectorOffset, qi, dVectorNumElems);
 
         }
 
@@ -1530,7 +1522,7 @@ VocTree::cudaQuery(Mat &descriptors, int *limit) {
     //	Ptr< vector<Matching> > res = new vector<Matching>( min(_dbSize, limit); );
     //	partial_sort_copy(result.begin(), result.end(), res->begin(), res->end());
 
-    nvtxRangePush("__Partial_sort_range__");
+    nvtxRangePush("__F_Partial_sort_range__");
     partial_sort(_cudaResult, _cudaResult + *limit, _cudaResult + _dbSize, &compareMatch);
     nvtxRangePop();
         
@@ -1833,7 +1825,8 @@ VocTree::loadVectors(string &fileName) {
     _dVectorsSize = 0;
 
     // The root node is not included because the weight is always zero
-    cudaMallocManaged(&_cudadVectorOffsets, (_usedNodes - 1) * sizeof(dVectorOffset_t));
+    //cudaMallocManaged(&_cudadVectorOffsets, (_usedNodes - 1) * sizeof(dVectorOffset_t));
+    _cudadVectorOffsets.resize(_usedNodes-1);
     unsigned int offsIdx = 0;
     int prevSize = 0;
 
@@ -1851,8 +1844,10 @@ VocTree::loadVectors(string &fileName) {
                 pComps->resize(size);
 
                 if (idx > 0) {
-                    _cudadVectorOffsets[offsIdx].offset = prevSize;
-                    _cudadVectorOffsets[offsIdx].numElements = size;
+                    //_cudadVectorOffsets[offsIdx].offset = prevSize;
+                    //_cudadVectorOffsets[offsIdx].numElements = size;
+                    _cudadVectorOffsets.at(offsIdx).offset = prevSize;
+                    _cudadVectorOffsets.at(offsIdx).numElements = size;
                     prevSize += size;
                     offsIdx++;
                 }
@@ -1902,7 +1897,16 @@ VocTree::loadVectors(string &fileName) {
         cudaMemcpy(_cudaDVector + cursor, comps.data(), comps.size() * sizeof(DComponent), cudaMemcpyHostToDevice);
 
         cursor += comps.size();
+
+        // Remove to free memory
+        //comps.~vector();
     }
+
+    // Free memory
+    _dVectors.clear();
+    _dVectors.~vector();
+
+    // Remove _dVectors
 
     /*
     // Iterate through offsets and test equality
@@ -2128,7 +2132,7 @@ VocTree::printInvIndexInfo() {
     cout << "_invIdx info :  total elements = " << totalElems << ", byte size = " << totalElems * sizeof(int) << endl;
 }
 
-Matching::match_t*
+VocTree::match_t*
 VocTree::getCudaResult() {
     return _cudaResult;
 }

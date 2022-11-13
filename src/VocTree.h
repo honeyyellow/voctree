@@ -98,10 +98,15 @@ public:
      */
     void showInfo();
 
+    typedef struct match {
+        float score;
+        int fileId;
+    } match_t;
+
     /**
      * @return address of cuda result from query execution
      */
-    Matching::match_t *getCudaResult();
+    match_t *getCudaResult();
 
     // used to store the d vectors
     // declared public to be accessible
@@ -111,7 +116,6 @@ public:
         float value;
         //float q; // Add this for kernel result computation
     };
-
 
 
 private:
@@ -185,9 +189,9 @@ private:
 
     float *_cudaWeights;
 
-    float *_queryBoF;
+    vector<float> _queryBoF;
 
-    Matching::match_t *_cudaResult;
+    match_t *_cudaResult;
 
     // for virtual inverted indexes (IIF: Inverted Index File)
     struct IIFEntry {
@@ -236,7 +240,8 @@ private:
 
     // Stores the offset and the number of elements
     // of the dVectors stored in the nodes
-    dVectorOffset_t *_cudadVectorOffsets;
+    //dVectorOffset_t *_cudadVectorOffsets;
+    vector<dVectorOffset> _cudadVectorOffsets;
     // Set to the longest _dVector at VocTree start
     // when the _dVectors are read into memory from file
     DComponent *_cudaDVector;

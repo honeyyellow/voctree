@@ -21,10 +21,12 @@ class Matching {
 
 public:
 
+    /*
     typedef struct match {
         float score;
         int fileId;
     } match_t;
+    */
 
     // The id of the file element
     // (is a number of the inverted index provided to the tree)

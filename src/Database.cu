@@ -824,7 +824,7 @@ void splitPathFile(string fileName, string &path, string &file) {
 }
 
 vector<Database::ExportInfo>
-Database::exportCudaResults(Matching::match_t *cudaResult, int limit) {
+Database::exportCudaResults(VocTree::match_t *cudaResult, int limit) {
 
     vector<ExportInfo> ret;
 
@@ -1187,7 +1187,7 @@ Database::query(string &fileName,
 
     //cout << "query: " << fileName << endl;
 
-    nvtxRangePush("__Read_image_range__");
+    nvtxRangePush("__B_Read_image_range__");
     Mat img = readResource(fileName);
 
     if (!img.data) {
@@ -1197,7 +1197,7 @@ Database::query(string &fileName,
     nvtxRangePop();
 
     //cout << "extracting features..." << endl;
-    nvtxRangePush("__PopSift_descriptor_extraction_range__");
+    nvtxRangePush("__C_PopSift_descriptor_extraction_range__");
     if (!extractFeatures(img, qKeypoints, qDescriptors)) {
         cerr << fileName << " can not be processed" << endl;
         return;
@@ -1324,7 +1324,7 @@ Database::writeKeypointsToFile(string filepath, vector<KeyPoint> &keypoints) {
     outFile.close();
 }
 
-Matching::match_t*
+VocTree::match_t*
 Database::getCudaResultFromVocTree() {
     return _vt->getCudaResult();
 }
