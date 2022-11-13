@@ -17,6 +17,8 @@
 using namespace cv;
 using namespace std;
 
+#define N_IMAGES 500
+
 
 Ptr<Database>
 Database::build(
@@ -389,7 +391,7 @@ Database::processFiles(bool update, bool forVocabulary) {
     FileHelper::listDir(path, dir, true);
 
     // Loop through 20k to build with 20k images
-    dir.resize(20000);
+    dir.resize(N_IMAGES);
 
     cout << "Dir size : " << dir.size() << ", forVocabulary : " << forVocabulary << endl;
 
@@ -577,7 +579,7 @@ void Database::processInput(bool reuseFeatures, bool forVocabulary) {
         cout << "storing catalog..." << endl;
         ctlg->store(fileCatalog);
 
-        ctlg->shrink(20000);
+        ctlg->shrink(N_IMAGES);
 
         cout << "Vocabulary image catalog size : " << ctlg->size() << endl;
 
